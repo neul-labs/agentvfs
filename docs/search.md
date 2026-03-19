@@ -1,26 +1,26 @@
 # Search & Grep
 
-vfs provides powerful search capabilities for finding files by name, content, and attributes.
+avfs provides powerful search capabilities for finding files by name, content, and attributes.
 
 ## Full-Text Search
 
-vfs uses SQLite FTS5 for fast full-text search across all file contents.
+avfs uses SQLite FTS5 for fast full-text search across all file contents.
 
 ### Basic Search
 
 ```bash
-vfs search <query>
+avfs search <query>
 ```
 
 **Examples:**
 
 ```bash
-$ vfs search "database connection"
+$ avfs search "database connection"
 /src/db.rs:15: let connection = Database::connect(url)?;
 /docs/setup.md:42: Configure your database connection string...
 /config/example.yaml:8: database_connection: postgres://...
 
-$ vfs search "TODO"
+$ avfs search "TODO"
 /src/main.rs:23: // TODO: implement error handling
 /src/lib.rs:89: // TODO: add tests
 /notes/tasks.md:5: - TODO: review PR #123
@@ -29,14 +29,14 @@ $ vfs search "TODO"
 ### Search in Directory
 
 ```bash
-vfs search "query" /path/
+avfs search "query" /path/
 ```
 
 **Examples:**
 
 ```bash
-vfs search "import" /src/
-vfs search "config" /docs/
+avfs search "import" /src/
+avfs search "config" /docs/
 ```
 
 ### Search Options
@@ -54,16 +54,16 @@ vfs search "config" /docs/
 
 ```bash
 # Case insensitive
-vfs search -i "error"
+avfs search -i "error"
 
 # Whole words only (won't match "errors")
-vfs search -w "error"
+avfs search -w "error"
 
 # Just filenames
-vfs search -l "TODO"
+avfs search -l "TODO"
 
 # Count matches
-$ vfs search -c "TODO"
+$ avfs search -c "TODO"
 /src/main.rs: 3
 /src/lib.rs: 7
 /notes/tasks.md: 12
@@ -72,29 +72,29 @@ Total: 22 matches in 3 files
 
 ### FTS5 Query Syntax
 
-vfs supports SQLite FTS5 query syntax for advanced searches:
+avfs supports SQLite FTS5 query syntax for advanced searches:
 
 ```bash
 # Phrase search
-vfs search '"exact phrase"'
+avfs search '"exact phrase"'
 
 # AND (default)
-vfs search "database connection"  # finds both words
+avfs search "database connection"  # finds both words
 
 # OR
-vfs search "error OR warning"
+avfs search "error OR warning"
 
 # NOT
-vfs search "config NOT test"
+avfs search "config NOT test"
 
 # Prefix matching
-vfs search "data*"  # matches database, datatype, etc.
+avfs search "data*"  # matches database, datatype, etc.
 
 # NEAR (words within N tokens)
-vfs search "NEAR(error handling, 5)"
+avfs search "NEAR(error handling, 5)"
 
 # Column filtering (content only, not path)
-vfs search "content:database"
+avfs search "content:database"
 ```
 
 ## Grep
@@ -104,13 +104,13 @@ The `grep` command provides regex-based searching with more control over output 
 ### Basic Grep
 
 ```bash
-vfs grep <pattern> [path]
+avfs grep <pattern> [path]
 ```
 
 **Examples:**
 
 ```bash
-$ vfs grep "fn \w+\(" /src/
+$ avfs grep "fn \w+\(" /src/
 /src/main.rs:5:fn main() {
 /src/main.rs:12:fn process_args(args: &[String]) -> Result<Config> {
 /src/lib.rs:8:fn new() -> Self {
@@ -118,26 +118,26 @@ $ vfs grep "fn \w+\(" /src/
 
 ### Regex Patterns
 
-vfs uses Rust's regex crate, supporting:
+avfs uses Rust's regex crate, supporting:
 
 ```bash
 # Character classes
-vfs grep "[0-9]+" /data/          # Numbers
-vfs grep "[A-Z][a-z]+" /docs/     # Capitalized words
+avfs grep "[0-9]+" /data/          # Numbers
+avfs grep "[A-Z][a-z]+" /docs/     # Capitalized words
 
 # Quantifiers
-vfs grep "colou?r" /docs/         # color or colour
-vfs grep "go+gle" /notes/         # gogle, google, gooogle...
+avfs grep "colou?r" /docs/         # color or colour
+avfs grep "go+gle" /notes/         # gogle, google, gooogle...
 
 # Anchors
-vfs grep "^import" /src/          # Lines starting with import
-vfs grep ";\s*$" /src/            # Lines ending with semicolon
+avfs grep "^import" /src/          # Lines starting with import
+avfs grep ";\s*$" /src/            # Lines ending with semicolon
 
 # Groups
-vfs grep "(TODO|FIXME|HACK)" /src/
+avfs grep "(TODO|FIXME|HACK)" /src/
 
 # Lookahead/lookbehind (advanced)
-vfs grep "(?<=fn )\w+" /src/      # Function names after 'fn '
+avfs grep "(?<=fn )\w+" /src/      # Function names after 'fn '
 ```
 
 ### Grep Options
@@ -163,14 +163,14 @@ vfs grep "(?<=fn )\w+" /src/      # Function names after 'fn '
 
 ```bash
 # 3 lines after each match
-$ vfs grep -A 3 "fn main" /src/main.rs
+$ avfs grep -A 3 "fn main" /src/main.rs
 /src/main.rs:5:fn main() {
 /src/main.rs-6-    let args: Vec<String> = env::args().collect();
 /src/main.rs-7-    let config = process_args(&args)?;
 /src/main.rs-8-    run(config)?;
 
 # 2 lines before and after
-$ vfs grep -C 2 "error" /logs/app.log
+$ avfs grep -C 2 "error" /logs/app.log
 ```
 
 ### Invert Match
@@ -179,10 +179,10 @@ Find lines NOT matching a pattern:
 
 ```bash
 # Lines without comments
-vfs grep -v "^\s*//" /src/main.rs
+avfs grep -v "^\s*//" /src/main.rs
 
 # Files without TODO
-vfs grep -L "TODO" /src/
+avfs grep -L "TODO" /src/
 ```
 
 ### Only Matching
@@ -190,7 +190,7 @@ vfs grep -L "TODO" /src/
 Extract just the matched text:
 
 ```bash
-$ vfs grep -o "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}" /contacts/
+$ avfs grep -o "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}" /contacts/
 john@example.com
 jane.doe@company.org
 support@service.io
@@ -203,46 +203,46 @@ The `find` command locates files by name, attributes, and metadata.
 ### Find by Name
 
 ```bash
-vfs find [path] -name <pattern>
+avfs find [path] -name <pattern>
 ```
 
 Uses glob patterns (not regex):
 
 ```bash
 # All text files
-vfs find / -name "*.txt"
+avfs find / -name "*.txt"
 
 # Files starting with "test"
-vfs find /src -name "test*"
+avfs find /src -name "test*"
 
 # Single character wildcard
-vfs find / -name "file?.txt"  # file1.txt, fileA.txt, etc.
+avfs find / -name "file?.txt"  # file1.txt, fileA.txt, etc.
 
 # Character class
-vfs find / -name "log[0-9].txt"  # log0.txt through log9.txt
+avfs find / -name "log[0-9].txt"  # log0.txt through log9.txt
 ```
 
 ### Find by Type
 
 ```bash
 # Files only
-vfs find / -type f
+avfs find / -type f
 
 # Directories only
-vfs find / -type d
+avfs find / -type d
 ```
 
 ### Find by Size
 
 ```bash
 # Files larger than 10MB
-vfs find / -size +10M
+avfs find / -size +10M
 
 # Files smaller than 1KB
-vfs find / -size -1K
+avfs find / -size -1K
 
 # Exact size (rarely useful)
-vfs find / -size 1024
+avfs find / -size 1024
 
 # Size units: B, K, M, G
 ```
@@ -251,54 +251,54 @@ vfs find / -size 1024
 
 ```bash
 # Modified in last 7 days
-vfs find / -mtime -7
+avfs find / -mtime -7
 
 # Modified more than 30 days ago
-vfs find / -mtime +30
+avfs find / -mtime +30
 
 # Modified exactly 1 day ago
-vfs find / -mtime 1
+avfs find / -mtime 1
 ```
 
 ### Find by Tag
 
 ```bash
-vfs find / -tag important
-vfs find / -tag work -tag urgent  # AND
+avfs find / -tag important
+avfs find / -tag work -tag urgent  # AND
 ```
 
 ### Find by Metadata
 
 ```bash
-vfs find / -meta author="Jane Doe"
-vfs find / -meta status!=draft
-vfs find / -meta priority>5
+avfs find / -meta author="Jane Doe"
+avfs find / -meta status!=draft
+avfs find / -meta priority>5
 ```
 
 ### Combining Conditions
 
 ```bash
 # Large Rust files
-vfs find /src -name "*.rs" -size +10K
+avfs find /src -name "*.rs" -size +10K
 
 # Recent important documents
-vfs find /docs -tag important -mtime -7
+avfs find /docs -tag important -mtime -7
 
 # Old log files
-vfs find /logs -name "*.log" -mtime +30
+avfs find /logs -name "*.log" -mtime +30
 ```
 
 ### Execute on Results
 
 ```bash
 # Delete old logs
-vfs find /logs -name "*.log" -mtime +30 -exec rm {}
+avfs find /logs -name "*.log" -mtime +30 -exec rm {}
 
 # Tag large files
-vfs find / -size +100M -exec vfs tag {} large-file
+avfs find / -size +100M -exec avfs tag {} large-file
 
 # Grep in found files
-vfs find /src -name "*.rs" -exec vfs grep "TODO" {}
+avfs find /src -name "*.rs" -exec avfs grep "TODO" {}
 ```
 
 ## Performance Tips
@@ -308,7 +308,7 @@ vfs find /src -name "*.rs" -exec vfs grep "TODO" {}
 Check FTS index status:
 
 ```bash
-$ vfs search --status
+$ avfs search --status
 FTS Index Status:
   Indexed files: 1,234
   Index size: 8.5 MB
@@ -320,7 +320,7 @@ FTS Index Status:
 If search seems slow or incomplete:
 
 ```bash
-vfs search --rebuild
+avfs search --rebuild
 ```
 
 ### Search Large Vaults
@@ -329,23 +329,23 @@ For very large vaults:
 
 ```bash
 # Limit results
-vfs search --limit 100 "pattern"
+avfs search --limit 100 "pattern"
 
 # Search specific directory
-vfs search "pattern" /relevant/directory/
+avfs search "pattern" /relevant/directory/
 
 # Use grep for targeted search
-vfs grep "pattern" /specific/file.txt
+avfs grep "pattern" /specific/file.txt
 ```
 
 ### Exclude Paths
 
 ```bash
 # Exclude directories
-vfs grep "TODO" / --exclude "/vendor/*" --exclude "/node_modules/*"
+avfs grep "TODO" / --exclude "/vendor/*" --exclude "/node_modules/*"
 
 # Or use find piped to grep
-vfs find /src -name "*.rs" | xargs -I {} vfs grep "TODO" {}
+avfs find /src -name "*.rs" | xargs -I {} avfs grep "TODO" {}
 ```
 
 ## Output Formats
@@ -353,7 +353,7 @@ vfs find /src -name "*.rs" | xargs -I {} vfs grep "TODO" {}
 ### Standard Output
 
 ```bash
-$ vfs grep "error" /logs/
+$ avfs grep "error" /logs/
 /logs/app.log:15:Error: Connection failed
 /logs/app.log:23:error handling exception
 ```
@@ -361,7 +361,7 @@ $ vfs grep "error" /logs/
 ### JSON Output
 
 ```bash
-$ vfs grep --json "error" /logs/
+$ avfs grep --json "error" /logs/
 {
   "matches": [
     {
@@ -381,7 +381,7 @@ $ vfs grep --json "error" /logs/
 For scripts, just exit code:
 
 ```bash
-if vfs grep -q "error" /logs/; then
+if avfs grep -q "error" /logs/; then
     echo "Errors found!"
 fi
 ```
@@ -392,8 +392,8 @@ fi
 
 ```bash
 # Find files with old API
-vfs grep -l "old_api" /src/ | while read file; do
-    vfs exec 'sed -i s/old_api/new_api/g' "$file"
+avfs grep -l "old_api" /src/ | while read file; do
+    avfs exec 'sed -i s/old_api/new_api/g' "$file"
 done
 ```
 
@@ -401,18 +401,18 @@ done
 
 ```bash
 # Search only in code files
-vfs grep "TODO" $(vfs find / -tag code)
+avfs grep "TODO" $(avfs find / -tag code)
 
 # Or using find -exec
-vfs find / -tag code -exec vfs grep "TODO" {}
+avfs find / -tag code -exec avfs grep "TODO" {}
 ```
 
 ### Export Search Results
 
 ```bash
 # Create report of all TODOs
-vfs grep "TODO|FIXME|HACK" /src/ > ~/todos-report.txt
+avfs grep "TODO|FIXME|HACK" /src/ > ~/todos-report.txt
 
 # JSON export
-vfs grep --json "TODO" /src/ | jq '.matches[] | "\(.path):\(.line): \(.content)"'
+avfs grep --json "TODO" /src/ | jq '.matches[] | "\(.path):\(.line): \(.content)"'
 ```

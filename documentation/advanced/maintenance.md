@@ -19,16 +19,16 @@ Regular maintenance keeps vaults performant and storage-efficient.
 Retain only the last N versions of each file:
 
 ```bash
-vfs prune --keep <N>
+avfs prune --keep <N>
 ```
 
 **Example:**
 
 ```bash
-$ vfs prune --keep 5
+$ avfs prune --keep 5
 Pruning versions, keeping last 5 per file...
 Removed 1,234 old versions
-Freed 45.2 MB (run 'vfs compact' to reclaim space)
+Freed 45.2 MB (run 'avfs compact' to reclaim space)
 ```
 
 ### Time-Based Pruning
@@ -36,13 +36,13 @@ Freed 45.2 MB (run 'vfs compact' to reclaim space)
 Remove versions older than N days:
 
 ```bash
-vfs prune --older-than <DAYS>
+avfs prune --older-than <DAYS>
 ```
 
 **Example:**
 
 ```bash
-$ vfs prune --older-than 30
+$ avfs prune --older-than 30
 Pruning versions older than 30 days...
 Removed 892 old versions
 Freed 23.1 MB
@@ -54,7 +54,7 @@ Strategies can be combined:
 
 ```bash
 # Keep last 10 versions AND remove anything older than 90 days
-vfs prune --keep 10 --older-than 90
+avfs prune --keep 10 --older-than 90
 ```
 
 ### Prune Specific Files
@@ -62,8 +62,8 @@ vfs prune --keep 10 --older-than 90
 Target specific files or patterns:
 
 ```bash
-vfs prune --keep 3 /logs/*.log
-vfs prune --older-than 7 /cache/
+avfs prune --keep 3 /logs/*.log
+avfs prune --older-than 7 /cache/
 ```
 
 ## Dry Run
@@ -71,7 +71,7 @@ vfs prune --older-than 7 /cache/
 Preview what would be pruned without actually deleting:
 
 ```bash
-$ vfs prune --keep 5 --dry-run
+$ avfs prune --keep 5 --dry-run
 DRY RUN - No changes will be made
 
 Would remove:
@@ -97,17 +97,17 @@ Content becomes orphaned when:
 ### Run GC
 
 ```bash
-vfs gc
+avfs gc
 ```
 
 **Example:**
 
 ```bash
-$ vfs gc
+$ avfs gc
 Scanning for orphaned content...
 Found 234 orphaned blobs (12.5 MB)
 Removing orphaned content...
-Done. Run 'vfs compact' to reclaim disk space.
+Done. Run 'avfs compact' to reclaim disk space.
 ```
 
 ## Compaction
@@ -115,13 +115,13 @@ Done. Run 'vfs compact' to reclaim disk space.
 After pruning and GC, the database file still occupies the same disk space. Compaction reclaims unused space.
 
 ```bash
-vfs compact
+avfs compact
 ```
 
 **Example:**
 
 ```bash
-$ vfs compact
+$ avfs compact
 Compacting vault 'myproject'...
 Before: 125.3 MB
 After: 89.7 MB
@@ -140,7 +140,7 @@ Freed: 35.6 MB
 Complete maintenance in one command:
 
 ```bash
-vfs maintain
+avfs maintain
 ```
 
 This runs:
@@ -153,7 +153,7 @@ This runs:
 **Example:**
 
 ```bash
-$ vfs maintain
+$ avfs maintain
 Starting maintenance for vault 'myproject'...
 
 [1/4] Pruning old versions...
@@ -178,7 +178,7 @@ After: 127.8 MB
 ### Vault Statistics
 
 ```bash
-vfs stats
+avfs stats
 ```
 
 Shows:
@@ -191,7 +191,7 @@ Shows:
 ### Storage Breakdown
 
 ```bash
-$ vfs stats
+$ avfs stats
 Storage Breakdown:
   Content blobs:  89.2 MB (1,234 blobs)
   Version data:   12.3 MB (5,678 versions)
@@ -203,7 +203,7 @@ Storage Breakdown:
 
 ## Best Practices
 
-1. **Regular maintenance**: Run `vfs maintain` weekly for active vaults
+1. **Regular maintenance**: Run `avfs maintain` weekly for active vaults
 2. **Dry run first**: Always preview with `--dry-run` before pruning
 3. **Backup before major cleanup**: Export important files before aggressive pruning
 4. **Compact after bulk operations**: Always compact after large imports/deletes
@@ -215,13 +215,13 @@ Storage Breakdown:
 After pruning/GC, run compact:
 
 ```bash
-vfs compact
+avfs compact
 ```
 
 If size still doesn't decrease, check for:
 
-- Large remaining files: `vfs find / --min-size 10485760`
-- Files with many versions: `vfs stats`
+- Large remaining files: `avfs find / --min-size 10485760`
+- Files with many versions: `avfs stats`
 
 ### Slow Pruning
 
@@ -229,7 +229,7 @@ For large vaults, prune in batches by directory:
 
 ```bash
 for dir in /docs /src /data; do
-    vfs prune --keep 5 "$dir"
+    avfs prune --keep 5 "$dir"
 done
 ```
 

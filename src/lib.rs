@@ -1,4 +1,4 @@
-//! vfs - Virtual filesystem CLI backed by embedded databases.
+//! agentvfs - Virtual filesystem CLI backed by embedded databases.
 //!
 //! This library provides a virtual filesystem abstraction that stores files
 //! in an embedded database (SQLite by default). It supports multiple independent
@@ -9,11 +9,11 @@
 //!
 //! ```no_run
 //! use std::sync::Arc;
-//! use vfs::storage::SqliteBackend;
-//! use vfs::fs::FileSystem;
+//! use agentvfs::storage::SqliteBackend;
+//! use agentvfs::fs::FileSystem;
 //!
 //! // Open a storage backend
-//! let backend = Arc::new(SqliteBackend::open(std::path::Path::new("my.vfs")).unwrap());
+//! let backend = Arc::new(SqliteBackend::open(std::path::Path::new("my.avfs")).unwrap());
 //!
 //! // Create filesystem
 //! let fs = FileSystem::new(backend);

@@ -1,4 +1,4 @@
-# vfs - Virtual Filesystem CLI
+# agentvfs - Virtual Filesystem CLI
 
 A command-line tool that implements a fully-featured virtual filesystem backed by embedded databases. Manage files, directories, and content using familiar shell commands without touching the real filesystem.
 
@@ -12,18 +12,18 @@ A command-line tool that implements a fully-featured virtual filesystem backed b
 - **Full-Text Search**: Fast content search (FTS5 for SQLite, Tantivy for others)
 - **Grep Support**: Regex-based content searching across files
 - **External Commands**: Run bash commands on virtual files via exec or pipes
-- **Interactive Shell**: REPL mode where you don't need to prefix commands with `vfs`
+- **Interactive Shell**: REPL mode where you don't need to prefix commands with `avfs`
 - **Agent-Friendly**: JSON output, snapshots, quotas, and audit logs for AI agent integration
 
 ## Installation
 
 ```bash
 # From crates.io (once published)
-cargo install vfs
+cargo install agentvfs
 
 # From source
-git clone https://github.com/yourusername/vfs
-cd vfs
+git clone https://github.com/yourusername/agentvfs
+cd agentvfs
 cargo build --release
 ```
 
@@ -31,30 +31,30 @@ cargo build --release
 
 ```bash
 # Create a new vault
-vfs vault create myproject
+avfs vault create myproject
 
 # Create directories and files
-vfs mkdir /docs
-vfs write /docs/readme.txt "Hello, World!"
+avfs mkdir /docs
+avfs write /docs/readme.txt "Hello, World!"
 
 # List files
-vfs ls /docs
+avfs ls /docs
 
 # Read file contents
-vfs cat /docs/readme.txt
+avfs cat /docs/readme.txt
 
 # Copy and move files
-vfs cp /docs/readme.txt /docs/backup.txt
-vfs mv /docs/backup.txt /archive/
+avfs cp /docs/readme.txt /docs/backup.txt
+avfs mv /docs/backup.txt /archive/
 
 # Search for content
-vfs grep "Hello" /docs/
+avfs grep "Hello" /docs/
 
 # View version history
-vfs log /docs/readme.txt
+avfs log /docs/readme.txt
 
-# Enter interactive shell (no vfs prefix needed)
-vfs shell
+# Enter interactive shell (no avfs prefix needed)
+avfs shell
 ```
 
 ## Command Reference
@@ -78,10 +78,10 @@ vfs shell
 
 ## Interactive Shell
 
-Launch an interactive session where commands work without the `vfs` prefix:
+Launch an interactive session where commands work without the `avfs` prefix:
 
 ```bash
-$ vfs shell
+$ avfs shell
 [vault:myproject] / > ls
 docs/
 archive/
@@ -93,7 +93,7 @@ Hello, World!
 
 ## Storage Backends
 
-vfs supports multiple embedded database backends:
+avfs supports multiple embedded database backends:
 
 | Backend | Best For | Notes |
 |---------|----------|-------|
@@ -104,35 +104,35 @@ vfs supports multiple embedded database backends:
 
 ```bash
 # Create vault with specific backend
-vfs vault create myproject --backend sqlite
-vfs vault create logs --backend sled
+avfs vault create myproject --backend sqlite
+avfs vault create logs --backend sled
 
 # Migrate between backends
-vfs vault migrate myproject --to lmdb
+avfs vault migrate myproject --to lmdb
 ```
 
 See [Storage Backends](docs/storage-backends.md) for details.
 
 ## AI Agent Integration
 
-vfs is designed to work as a sandboxed filesystem for AI agents:
+avfs is designed to work as a sandboxed filesystem for AI agents:
 
 ```python
 import subprocess, json
 
-def vfs(*args):
-    result = subprocess.run(["vfs", "--json"] + list(args), capture_output=True, text=True)
+def avfs(*args):
+    result = subprocess.run(["avfs", "--json"] + list(args), capture_output=True, text=True)
     return json.loads(result.stdout)
 
 # Save state before experiment
-vfs("snapshot", "save", "checkpoint")
+avfs("snapshot", "save", "checkpoint")
 
 # Agent does work
-vfs("mkdir", "/workspace")
-vfs("write", "/workspace/code.py", "print('hello')")
+avfs("mkdir", "/workspace")
+avfs("write", "/workspace/code.py", "print('hello')")
 
 # Rollback if needed
-vfs("snapshot", "restore", "checkpoint")
+avfs("snapshot", "restore", "checkpoint")
 ```
 
 **Key features for agents:**
@@ -142,6 +142,25 @@ vfs("snapshot", "restore", "checkpoint")
 - Audit logs for debugging
 
 See [Agent Integration](docs/agent-integration.md) for full documentation.
+
+## Agent Setup Script
+
+For AI agents (Claude, Codex, etc.), use the setup script to create a workspace:
+
+```bash
+# Create and mount a vault, then cd into it
+source scripts/agent-setup.sh my-workspace
+
+# Or add this function to your .bashrc:
+avfs-workspace() {
+    local name="${1:-agent-workspace}"
+    local mount="/tmp/avfs-$name"
+    avfs vault create "$name" 2>/dev/null
+    mkdir -p "$mount"
+    avfs mount "$name" "$mount"
+    cd "$mount"
+}
+```
 
 ## Documentation
 
@@ -158,7 +177,7 @@ See [Agent Integration](docs/agent-integration.md) for full documentation.
 - [Interactive Shell](docs/shell.md)
 - [Agent Integration](docs/agent-integration.md)
 
-## Why vfs?
+## Why agentvfs?
 
 - **Isolation**: Keep project files separate from your real filesystem
 - **Portability**: A single database file contains your entire filesystem

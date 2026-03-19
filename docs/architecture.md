@@ -2,7 +2,7 @@
 
 ## Design Philosophy
 
-vfs is designed around these core principles:
+avfs is designed around these core principles:
 
 1. **Familiarity**: Commands mirror standard Unix utilities
 2. **Isolation**: Virtual filesystems are completely separate from the host filesystem
@@ -57,7 +57,7 @@ vfs is designed around these core principles:
 ## Components
 
 ### CLI Layer
-Parses command-line arguments using `clap`. Each command is a subcommand with its own argument structure. The interactive shell (`vfs shell`) provides a REPL that dispatches to the same command handlers.
+Parses command-line arguments using `clap`. Each command is a subcommand with its own argument structure. The interactive shell (`avfs shell`) provides a REPL that dispatches to the same command handlers.
 
 ### Command Layer
 Business logic for each operation. Commands are stateless functions that receive parsed arguments and a storage interface. Each command:
@@ -157,22 +157,22 @@ Data is serialized using a compact binary format (e.g., bincode, MessagePack, or
 
 A **vault** is an independent virtual filesystem stored in a single database file. Users can:
 - Create multiple vaults for different projects
-- Switch between vaults with `vfs vault use`
+- Switch between vaults with `avfs vault use`
 - Back up vaults by copying the database file
 
-Default vault location: `~/.vfs/vaults/`
+Default vault location: `~/.avfs/vaults/`
 
 ```
-~/.vfs/
+~/.avfs/
 ├── config.toml          # Global configuration
 ├── current_vault        # Tracks active vault
 └── vaults/
-    ├── default.vfs      # SQLite backend (or .sled, .lmdb)
-    ├── myproject.vfs
-    └── experiments.vfs
+    ├── default.avfs      # SQLite backend (or .sled, .lmdb)
+    ├── myproject.avfs
+    └── experiments.avfs
 ```
 
-Vault files use the `.vfs` extension regardless of backend, with the backend type stored in metadata.
+Vault files use the `.avfs` extension regardless of backend, with the backend type stored in metadata.
 
 ## Content-Addressable Storage
 

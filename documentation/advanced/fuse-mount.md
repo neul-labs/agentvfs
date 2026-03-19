@@ -38,17 +38,17 @@ cargo build --release --features fuse
 
 ```bash
 # Create mount point
-mkdir -p /tmp/vfs-mount
+mkdir -p /tmp/avfs-mount
 
 # Mount vault
-vfs mount <vault-name> <mountpoint> --foreground
+avfs mount <vault-name> <mountpoint> --foreground
 ```
 
 **Example:**
 
 ```bash
-$ vfs mount myproject /tmp/vfs-mount --foreground
-Mounting myproject at /tmp/vfs-mount (foreground mode)
+$ avfs mount myproject /tmp/avfs-mount --foreground
+Mounting myproject at /tmp/avfs-mount (foreground mode)
 Press Ctrl+C to unmount
 ```
 
@@ -64,10 +64,10 @@ Press Ctrl+C to unmount
 
 ```bash
 # Read-only mount
-vfs mount myproject /tmp/vfs-mount --foreground --readonly
+avfs mount myproject /tmp/avfs-mount --foreground --readonly
 
 # Allow other users (requires /etc/fuse.conf configuration)
-vfs mount myproject /tmp/vfs-mount --foreground --allow-other
+avfs mount myproject /tmp/avfs-mount --foreground --allow-other
 ```
 
 ## Using the Mount
@@ -77,66 +77,66 @@ Once mounted, use standard Unix tools:
 ### List Files
 
 ```bash
-ls -la /tmp/vfs-mount/
+ls -la /tmp/avfs-mount/
 ```
 
 ### Read Files
 
 ```bash
-cat /tmp/vfs-mount/docs/readme.txt
-less /tmp/vfs-mount/docs/readme.txt
+cat /tmp/avfs-mount/docs/readme.txt
+less /tmp/avfs-mount/docs/readme.txt
 ```
 
 ### Write Files
 
 ```bash
-echo "New content" > /tmp/vfs-mount/newfile.txt
+echo "New content" > /tmp/avfs-mount/newfile.txt
 ```
 
 ### Edit with Editors
 
 ```bash
-vim /tmp/vfs-mount/docs/readme.txt
-nano /tmp/vfs-mount/config.yaml
-code /tmp/vfs-mount/  # VS Code
+vim /tmp/avfs-mount/docs/readme.txt
+nano /tmp/avfs-mount/config.yaml
+code /tmp/avfs-mount/  # VS Code
 ```
 
 ### Create Directories
 
 ```bash
-mkdir /tmp/vfs-mount/newdir
-mkdir -p /tmp/vfs-mount/path/to/nested
+mkdir /tmp/avfs-mount/newdir
+mkdir -p /tmp/avfs-mount/path/to/nested
 ```
 
 ### Copy and Move
 
 ```bash
-cp /tmp/vfs-mount/file.txt /tmp/vfs-mount/backup.txt
-mv /tmp/vfs-mount/old.txt /tmp/vfs-mount/new.txt
+cp /tmp/avfs-mount/file.txt /tmp/avfs-mount/backup.txt
+mv /tmp/avfs-mount/old.txt /tmp/avfs-mount/new.txt
 ```
 
 ### Delete
 
 ```bash
-rm /tmp/vfs-mount/unwanted.txt
-rm -r /tmp/vfs-mount/old-directory/
+rm /tmp/avfs-mount/unwanted.txt
+rm -r /tmp/avfs-mount/old-directory/
 ```
 
 ## Unmounting
 
-### Using vfs unmount
+### Using avfs unmount
 
 ```bash
-vfs unmount /tmp/vfs-mount
+avfs unmount /tmp/avfs-mount
 ```
 
 ### Using fusermount
 
 ```bash
-fusermount -u /tmp/vfs-mount
+fusermount -u /tmp/avfs-mount
 
 # Lazy unmount (if busy)
-fusermount -uz /tmp/vfs-mount
+fusermount -uz /tmp/avfs-mount
 ```
 
 ### Ctrl+C (Foreground Mode)
@@ -149,10 +149,10 @@ Changes made through the FUSE mount are immediately visible via VFS commands:
 
 ```bash
 # Create file via FUSE
-echo "Hello" > /tmp/vfs-mount/hello.txt
+echo "Hello" > /tmp/avfs-mount/hello.txt
 
 # Verify via VFS command
-vfs --vault myproject cat /hello.txt
+avfs --vault myproject cat /hello.txt
 # Output: Hello
 ```
 
@@ -160,10 +160,10 @@ And vice versa:
 
 ```bash
 # Create file via VFS
-vfs --vault myproject write /world.txt "World"
+avfs --vault myproject write /world.txt "World"
 
 # Read via FUSE
-cat /tmp/vfs-mount/world.txt
+cat /tmp/avfs-mount/world.txt
 # Output: World
 ```
 
@@ -173,19 +173,19 @@ Writes through FUSE create new versions just like VFS commands:
 
 ```bash
 # Write multiple times
-echo "Version 1" > /tmp/vfs-mount/file.txt
-echo "Version 2" > /tmp/vfs-mount/file.txt
-echo "Version 3" > /tmp/vfs-mount/file.txt
+echo "Version 1" > /tmp/avfs-mount/file.txt
+echo "Version 2" > /tmp/avfs-mount/file.txt
+echo "Version 3" > /tmp/avfs-mount/file.txt
 
 # Check version history
-vfs --vault myproject log /file.txt
+avfs --vault myproject log /file.txt
 ```
 
 ## Limitations
 
 1. **No symlinks**: VFS doesn't support symbolic links
 2. **No hard links**: Not supported
-3. **No extended attributes**: Use `vfs meta` instead
+3. **No extended attributes**: Use `avfs meta` instead
 4. **Single user**: No multi-user permission model
 5. **No concurrent mount**: Don't mount the same vault twice
 
@@ -196,8 +196,8 @@ vfs --vault myproject log /file.txt
 Mount a vault and open in your IDE:
 
 ```bash
-vfs mount myproject ~/vfs-project --foreground &
-code ~/vfs-project
+avfs mount myproject ~/avfs-project --foreground &
+code ~/avfs-project
 ```
 
 ### Backup Tools
@@ -205,7 +205,7 @@ code ~/vfs-project
 Use standard backup tools on virtual files:
 
 ```bash
-vfs mount myproject /tmp/mount --foreground --readonly &
+avfs mount myproject /tmp/mount --foreground --readonly &
 rsync -av /tmp/mount/ /backup/destination/
 ```
 
@@ -214,11 +214,11 @@ rsync -av /tmp/mount/ /backup/destination/
 Process virtual files with shell scripts:
 
 ```bash
-vfs mount myproject /tmp/mount --foreground &
+avfs mount myproject /tmp/mount --foreground &
 for f in /tmp/mount/data/*.csv; do
     process_csv "$f"
 done
-vfs unmount /tmp/mount
+avfs unmount /tmp/mount
 ```
 
 ## Troubleshooting
@@ -232,20 +232,20 @@ fusermount: user has no write access to mountpoint
 Ensure you have write permission to the mount directory:
 
 ```bash
-mkdir -p /tmp/vfs-mount
-chmod 755 /tmp/vfs-mount
+mkdir -p /tmp/avfs-mount
+chmod 755 /tmp/avfs-mount
 ```
 
 ### Transport Endpoint Not Connected
 
 ```bash
-ls: cannot access '/tmp/vfs-mount': Transport endpoint is not connected
+ls: cannot access '/tmp/avfs-mount': Transport endpoint is not connected
 ```
 
 The mount crashed or was improperly terminated. Force unmount:
 
 ```bash
-fusermount -uz /tmp/vfs-mount
+fusermount -uz /tmp/avfs-mount
 ```
 
 ### FUSE Not Available

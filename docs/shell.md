@@ -1,18 +1,18 @@
 # Interactive Shell
 
-vfs provides an interactive shell mode where you can use commands without the `vfs` prefix, offering a more natural filesystem experience.
+avfs provides an interactive shell mode where you can use commands without the `avfs` prefix, offering a more natural filesystem experience.
 
 ## Starting the Shell
 
 ```bash
-vfs shell
+avfs shell
 ```
 
 This launches an interactive REPL:
 
 ```bash
-$ vfs shell
-vfs 1.0.0 - SQLite Virtual Filesystem
+$ avfs shell
+avfs 1.0.0 - SQLite Virtual Filesystem
 Type 'help' for commands, 'exit' to quit.
 
 [default] / >
@@ -38,7 +38,7 @@ The prompt shows:
 
 ## Using Commands
 
-In shell mode, commands work without the `vfs` prefix:
+In shell mode, commands work without the `avfs` prefix:
 
 ```bash
 [default] / > ls
@@ -61,7 +61,7 @@ readme.txt
 
 ## Available Commands
 
-All vfs commands work in the shell:
+All avfs commands work in the shell:
 
 ### Navigation
 ```
@@ -199,12 +199,12 @@ Welcome to the project!
 
 ### History File
 
-Command history is saved to `~/.vfs/history` and persists across sessions.
+Command history is saved to `~/.avfs/history` and persists across sessions.
 
 Configure history size:
 
 ```bash
-vfs config history_size 1000
+avfs config history_size 1000
 ```
 
 ## Keyboard Shortcuts
@@ -238,10 +238,10 @@ f     1.2 KB   2024-03-08 09:30     README.md
 
 ### Persistent Aliases
 
-Save aliases to `~/.vfs/aliases`:
+Save aliases to `~/.avfs/aliases`:
 
 ```bash
-# ~/.vfs/aliases
+# ~/.avfs/aliases
 alias ll='ls -l'
 alias la='ls -la'
 alias ..='cd ..'
@@ -255,13 +255,13 @@ The shell supports basic scripting:
 ### Run Script
 
 ```bash
-vfs shell < script.vfs
+avfs shell < script.avfs
 ```
 
 ### Script Example
 
 ```bash
-# setup.vfs
+# setup.avfs
 mkdir /project
 mkdir /project/src
 mkdir /project/docs
@@ -288,14 +288,14 @@ grep "error" /logs/app.log && tag /logs/app.log has-errors
 Generate aliases for your regular shell:
 
 ```bash
-$ vfs aliases
-alias vls='vfs ls'
-alias vcd='vfs cd'
-alias vcat='vfs cat'
+$ avfs aliases
+alias vls='avfs ls'
+alias vcd='avfs cd'
+alias vcat='avfs cat'
 ...
 
 # Add to shell rc
-$ vfs aliases >> ~/.bashrc
+$ avfs aliases >> ~/.bashrc
 $ source ~/.bashrc
 
 # Now use directly
@@ -306,29 +306,29 @@ $ vcat /docs/readme.txt
 ### Custom Prefix
 
 ```bash
-$ vfs aliases --prefix "v"
-alias vls='vfs ls'
-alias vcat='vfs cat'
+$ avfs aliases --prefix "v"
+alias vls='avfs ls'
+alias vcat='avfs cat'
 ...
 
-$ vfs aliases --prefix "vfs-"
-alias vfs-ls='vfs ls'
-alias vfs-cat='vfs cat'
+$ avfs aliases --prefix "avfs-"
+alias avfs-ls='avfs ls'
+alias avfs-cat='avfs cat'
 ```
 
 ### Shell-Specific Formats
 
 ```bash
-vfs aliases --format bash   # Bash aliases (default)
-vfs aliases --format zsh    # Zsh aliases
-vfs aliases --format fish   # Fish abbreviations
+avfs aliases --format bash   # Bash aliases (default)
+avfs aliases --format zsh    # Zsh aliases
+avfs aliases --format fish   # Fish abbreviations
 ```
 
 ## Configuration
 
 ### Shell Settings
 
-Configure shell behavior in `~/.vfs/config.toml`:
+Configure shell behavior in `~/.avfs/config.toml`:
 
 ```toml
 [shell]
@@ -340,7 +340,7 @@ color = true
 
 # History settings
 history_size = 1000
-history_file = "~/.vfs/history"
+history_file = "~/.avfs/history"
 
 # Auto-completion
 completion = true
@@ -382,7 +382,7 @@ executable = "green"
 Check for configuration errors:
 
 ```bash
-vfs shell --verbose
+avfs shell --verbose
 ```
 
 ### Completion Not Working
@@ -390,7 +390,7 @@ vfs shell --verbose
 Ensure completion is enabled:
 
 ```bash
-vfs config completion true
+avfs config completion true
 ```
 
 ### History Not Saving
@@ -398,7 +398,7 @@ vfs config completion true
 Check history file permissions:
 
 ```bash
-ls -la ~/.vfs/history
+ls -la ~/.avfs/history
 ```
 
 ### Slow Startup
@@ -406,7 +406,7 @@ ls -la ~/.vfs/history
 Disable features for faster startup:
 
 ```bash
-vfs shell --no-history --no-completion
+avfs shell --no-history --no-completion
 ```
 
 Or in config:

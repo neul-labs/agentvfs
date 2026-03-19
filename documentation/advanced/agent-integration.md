@@ -22,23 +22,23 @@ class VFS:
         self.vault = vault
 
     def run(self, *args):
-        """Execute a vfs command and return parsed JSON."""
-        cmd = ["vfs", "--vault", self.vault, "--json"] + list(args)
+        """Execute a avfs command and return parsed JSON."""
+        cmd = ["avfs", "--vault", self.vault, "--json"] + list(args)
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:
             error = json.loads(result.stdout) if result.stdout else {"error": result.stderr}
-            raise Exception(f"vfs error: {error}")
+            raise Exception(f"avfs error: {error}")
         return json.loads(result.stdout) if result.stdout else None
 
 # Initialize
-vfs = VFS("agent-workspace")
+avfs = VFS("agent-workspace")
 
 # Create workspace
-vfs.run("mkdir", "/workspace")
-vfs.run("write", "/workspace/hello.txt", "Hello, World!")
+avfs.run("mkdir", "/workspace")
+avfs.run("write", "/workspace/hello.txt", "Hello, World!")
 
 # Read back
-result = vfs.run("cat", "/workspace/hello.txt")
+result = avfs.run("cat", "/workspace/hello.txt")
 print(result["content"])  # "Hello, World!"
 ```
 
@@ -50,7 +50,7 @@ All commands support `--json` for structured output that agents can parse.
 
 ```bash
 # List directory
-$ vfs ls --json /docs
+$ avfs ls --json /docs
 {
   "path": "/docs",
   "entries": [
@@ -64,7 +64,7 @@ $ vfs ls --json /docs
 }
 
 # Read file
-$ vfs cat --json /docs/readme.txt
+$ avfs cat --json /docs/readme.txt
 {
   "path": "/docs/readme.txt",
   "content": "Hello, World!",
@@ -78,7 +78,7 @@ $ vfs cat --json /docs/readme.txt
 Errors return JSON with consistent structure:
 
 ```bash
-$ vfs cat --json /nonexistent
+$ avfs cat --json /nonexistent
 {
   "error": "NotFound",
   "message": "File not found: /nonexistent",
@@ -99,15 +99,15 @@ Snapshots save the entire vault state, allowing agents to experiment and rollbac
 
 ```bash
 # Save state before experiment
-$ vfs snapshot save before-experiment
+$ avfs snapshot save before-experiment
 
 # Agent does work...
-$ vfs mkdir /experiment
-$ vfs write /experiment/code.py "print('test')"
-$ vfs rm /important/file.txt  # Oops!
+$ avfs mkdir /experiment
+$ avfs write /experiment/code.py "print('test')"
+$ avfs rm /important/file.txt  # Oops!
 
 # Restore to saved state
-$ vfs snapshot restore before-experiment
+$ avfs snapshot restore before-experiment
 
 # /important/file.txt is back, /experiment is gone
 ```
@@ -116,25 +116,25 @@ $ vfs snapshot restore before-experiment
 
 ```bash
 # List all snapshots
-vfs snapshot list
+avfs snapshot list
 
 # Save with description
-vfs snapshot save checkpoint-1 -d "Before refactoring"
+avfs snapshot save checkpoint-1 -d "Before refactoring"
 
 # Get snapshot info
-vfs snapshot info checkpoint-1
+avfs snapshot info checkpoint-1
 
 # Delete a snapshot
-vfs snapshot delete checkpoint-1
+avfs snapshot delete checkpoint-1
 ```
 
 ### Agent Pattern: Experiment Loop
 
 ```python
-def experiment_safely(vfs, experiment_fn):
+def experiment_safely(avfs, experiment_fn):
     """Run experiment with automatic rollback on failure."""
     # Save state
-    snapshot = vfs.run("snapshot", "save")
+    snapshot = avfs.run("snapshot", "save")
     snapshot_name = snapshot["name"]
 
     try:
@@ -142,11 +142,11 @@ def experiment_safely(vfs, experiment_fn):
         return {"success": True, "result": result}
     except Exception as e:
         # Rollback on failure
-        vfs.run("snapshot", "restore", snapshot_name)
+        avfs.run("snapshot", "restore", snapshot_name)
         return {"success": False, "error": str(e), "rolled_back": True}
     finally:
         # Clean up snapshot
-        vfs.run("snapshot", "delete", snapshot_name)
+        avfs.run("snapshot", "delete", snapshot_name)
 ```
 
 ## Quotas
@@ -157,12 +157,12 @@ Quotas prevent agents from consuming excessive resources.
 
 ```bash
 # Set limits
-vfs quota set max_size_mb 100       # Total vault size
-vfs quota set max_files 10000       # Maximum file count
-vfs quota set max_file_size_mb 10   # Single file limit
+avfs quota set max_size_mb 100       # Total vault size
+avfs quota set max_files 10000       # Maximum file count
+avfs quota set max_file_size_mb 10   # Single file limit
 
 # View current limits
-vfs quota
+avfs quota
 ```
 
 ### Quota Errors
@@ -182,9 +182,9 @@ When quotas are exceeded, operations fail with clear errors:
 ### Agent Pattern: Check Before Write
 
 ```python
-def safe_write(vfs, path, content):
+def safe_write(avfs, path, content):
     """Write with quota awareness."""
-    info = vfs.run("stats")
+    info = avfs.run("stats")
 
     content_size_mb = len(content.encode()) / (1024 * 1024)
 
@@ -192,7 +192,7 @@ def safe_write(vfs, path, content):
     if content_size_mb > 10:  # max_file_size_mb
         raise Exception(f"Content too large: {content_size_mb:.1f}MB")
 
-    return vfs.run("write", path, content)
+    return avfs.run("write", path, content)
 ```
 
 ## Audit Log
@@ -203,13 +203,13 @@ The audit log records all operations for debugging and analysis.
 
 ```bash
 # Recent operations
-$ vfs audit --limit 10
+$ avfs audit --limit 10
 
 # JSON output
-$ vfs audit --json --limit 100
+$ avfs audit --json --limit 100
 
 # Filter by time
-$ vfs audit --since "2024-03-10T14:00:00Z"
+$ avfs audit --since "2024-03-10T14:00:00Z"
 ```
 
 ### Audit Log Fields
@@ -224,14 +224,14 @@ $ vfs audit --since "2024-03-10T14:00:00Z"
 ### Clearing the Log
 
 ```bash
-vfs audit clear --before "2024-01-01"
+avfs audit clear --before "2024-01-01"
 ```
 
 ## Complete Agent Example
 
 ```python
 #!/usr/bin/env python3
-"""Example agent harness using vfs."""
+"""Example agent harness using avfs."""
 
 import subprocess
 import json
@@ -241,8 +241,8 @@ class VFSAgent:
         self.vault = vault_name
 
     def run(self, *args):
-        """Execute vfs command, return parsed JSON."""
-        cmd = ["vfs", "--vault", self.vault, "--json"] + [str(a) for a in args]
+        """Execute avfs command, return parsed JSON."""
+        cmd = ["avfs", "--vault", self.vault, "--json"] + [str(a) for a in args]
         result = subprocess.run(cmd, capture_output=True, text=True)
 
         if result.stdout:
@@ -301,11 +301,11 @@ agent.write("/project/src/main.py", "print('Hello!')")
 
 ```python
 # Good - parseable
-result = subprocess.run(["vfs", "--json", "ls", "/"], capture_output=True)
+result = subprocess.run(["avfs", "--json", "ls", "/"], capture_output=True)
 data = json.loads(result.stdout)
 
 # Bad - fragile text parsing
-result = subprocess.run(["vfs", "ls", "/"], capture_output=True)
+result = subprocess.run(["avfs", "ls", "/"], capture_output=True)
 ```
 
 ### 2. Checkpoint Before Risky Operations
@@ -325,13 +325,13 @@ def risky_operation(agent):
 
 ```bash
 # For code generation agents
-vfs quota set max_size_mb 50
-vfs quota set max_files 500
-vfs quota set max_file_size_mb 1
+avfs quota set max_size_mb 50
+avfs quota set max_files 500
+avfs quota set max_file_size_mb 1
 
 # For data processing agents
-vfs quota set max_size_mb 1000
-vfs quota set max_files 10000
+avfs quota set max_size_mb 1000
+avfs quota set max_files 10000
 ```
 
 ### 4. Use Audit Logs for Debugging

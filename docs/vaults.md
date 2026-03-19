@@ -1,12 +1,12 @@
 # Vault Management
 
-A **vault** is an independent virtual filesystem stored in a single database file (`.vfs` extension). vfs supports multiple vaults, allowing you to organize different projects, experiments, or backups in isolated containers.
+A **vault** is an independent virtual filesystem stored in a single database file (`.avfs` extension). avfs supports multiple vaults, allowing you to organize different projects, experiments, or backups in isolated containers.
 
 ## Concepts
 
 ### What is a Vault?
 
-- A complete virtual filesystem in one `.vfs` file
+- A complete virtual filesystem in one `.avfs` file
 - Contains files, directories, versions, tags, and metadata
 - Fully isolated from other vaults
 - Portable - copy the file to move your filesystem
@@ -14,13 +14,13 @@ A **vault** is an independent virtual filesystem stored in a single database fil
 ### Default Storage Location
 
 ```
-~/.vfs/
-├── config.toml          # Global vfs configuration
+~/.avfs/
+├── config.toml          # Global avfs configuration
 ├── current              # Name of the active vault
 └── vaults/
-    ├── default.vfs       # The default vault
-    ├── myproject.vfs     # User-created vault
-    └── experiments.vfs   # Another vault
+    ├── default.avfs       # The default vault
+    ├── myproject.avfs     # User-created vault
+    └── experiments.avfs   # Another vault
 ```
 
 ## Creating Vaults
@@ -28,40 +28,40 @@ A **vault** is an independent virtual filesystem stored in a single database fil
 ### Basic Creation
 
 ```bash
-vfs vault create <name>
+avfs vault create <name>
 ```
 
-Creates a new vault in the default location (`~/.vfs/vaults/<name>.vfs`).
+Creates a new vault in the default location (`~/.avfs/vaults/<name>.avfs`).
 
 ```bash
-$ vfs vault create myproject
-Created vault 'myproject' at ~/.vfs/vaults/myproject.vfs
+$ avfs vault create myproject
+Created vault 'myproject' at ~/.avfs/vaults/myproject.avfs
 Switched to vault 'myproject'
 ```
 
 ### Custom Location
 
 ```bash
-vfs vault create <name> --path <path>
+avfs vault create <name> --path <path>
 ```
 
 Store the vault database at a custom location:
 
 ```bash
 # External drive
-vfs vault create backup --path /mnt/external/backup.vfs
+avfs vault create backup --path /mnt/external/backup.avfs
 
 # Project directory
-vfs vault create project-files --path ./project.vfs
+avfs vault create project-files --path ./project.avfs
 
 # Absolute path
-vfs vault create archive --path /data/archives/2024.vfs
+avfs vault create archive --path /data/archives/2024.avfs
 ```
 
 ### Create Without Switching
 
 ```bash
-vfs vault create experiments --no-switch
+avfs vault create experiments --no-switch
 ```
 
 Creates the vault but keeps the current vault active.
@@ -69,12 +69,12 @@ Creates the vault but keeps the current vault active.
 ## Listing Vaults
 
 ```bash
-$ vfs vault list
+$ avfs vault list
   VAULT          SIZE      FILES    VERSIONS   PATH
-* default        12.3 MB   234      1,892      ~/.vfs/vaults/default.vfs
-  myproject      4.5 MB    89       456        ~/.vfs/vaults/myproject.vfs
-  experiments    128 KB    12       24         ~/.vfs/vaults/experiments.vfs
-  backup         2.1 GB    5,678    45,678     /mnt/external/backup.vfs
+* default        12.3 MB   234      1,892      ~/.avfs/vaults/default.avfs
+  myproject      4.5 MB    89       456        ~/.avfs/vaults/myproject.avfs
+  experiments    128 KB    12       24         ~/.avfs/vaults/experiments.avfs
+  backup         2.1 GB    5,678    45,678     /mnt/external/backup.avfs
 
 * = active vault
 ```
@@ -82,7 +82,7 @@ $ vfs vault list
 ### JSON Output
 
 ```bash
-vfs vault list --json
+avfs vault list --json
 ```
 
 Useful for scripting:
@@ -91,7 +91,7 @@ Useful for scripting:
 [
   {
     "name": "default",
-    "path": "~/.vfs/vaults/default.vfs",
+    "path": "~/.avfs/vaults/default.avfs",
     "size_bytes": 12902400,
     "file_count": 234,
     "version_count": 1892,
@@ -103,17 +103,17 @@ Useful for scripting:
 ## Switching Vaults
 
 ```bash
-vfs vault use <name>
+avfs vault use <name>
 ```
 
 Switch to a different vault:
 
 ```bash
-$ vfs vault use myproject
+$ avfs vault use myproject
 Switched to vault 'myproject'
 Current directory: /
 
-$ vfs pwd
+$ avfs pwd
 /
 ```
 
@@ -123,24 +123,24 @@ Use `--vault` flag with any command to temporarily use a different vault:
 
 ```bash
 # List files in another vault without switching
-vfs --vault backup ls /documents
+avfs --vault backup ls /documents
 
 # Copy between vaults
-vfs cat /file.txt | vfs --vault backup write /file.txt
+avfs cat /file.txt | avfs --vault backup write /file.txt
 ```
 
 ## Vault Information
 
 ```bash
-vfs vault info [name]
+avfs vault info [name]
 ```
 
 Show detailed information about a vault:
 
 ```bash
-$ vfs vault info myproject
+$ avfs vault info myproject
 Vault: myproject
-Path: ~/.vfs/vaults/myproject.vfs
+Path: ~/.avfs/vaults/myproject.avfs
 Size: 4.5 MB
 
 Statistics:
@@ -162,13 +162,13 @@ Last modified: 2024-03-10 14:22:15
 ## Deleting Vaults
 
 ```bash
-vfs vault delete <name>
+avfs vault delete <name>
 ```
 
 Delete a vault permanently:
 
 ```bash
-$ vfs vault delete experiments
+$ avfs vault delete experiments
 This will permanently delete vault 'experiments' and all its contents.
 Are you sure? [y/N] y
 Deleted vault 'experiments'
@@ -179,15 +179,15 @@ Deleted vault 'experiments'
 Skip confirmation prompt:
 
 ```bash
-vfs vault delete experiments --force
+avfs vault delete experiments --force
 ```
 
 ### Cannot Delete Active Vault
 
 ```bash
-$ vfs vault delete myproject
+$ avfs vault delete myproject
 Error: Cannot delete the active vault.
-Switch to another vault first: vfs vault use default
+Switch to another vault first: avfs vault use default
 ```
 
 ## Vault Configuration
@@ -197,13 +197,13 @@ Each vault has its own settings stored in the `settings` table.
 ### View Settings
 
 ```bash
-vfs vault config
+avfs vault config
 ```
 
 ### Modify Settings
 
 ```bash
-vfs vault config <key> <value>
+avfs vault config <key> <value>
 ```
 
 **Available settings:**
@@ -217,11 +217,11 @@ vfs vault config <key> <value>
 
 ```bash
 # Keep 20 versions instead of 10
-vfs vault config prune_keep_count 20
+avfs vault config prune_keep_count 20
 
 # Switch to time-based pruning
-vfs vault config prune_strategy time_based
-vfs vault config prune_max_age_days 90
+avfs vault config prune_strategy time_based
+avfs vault config prune_max_age_days 90
 ```
 
 ## Backup and Restore
@@ -232,41 +232,41 @@ Since a vault is a single SQLite file, backup is simple:
 
 ```bash
 # Copy the database file
-cp ~/.vfs/vaults/myproject.vfs ~/backups/myproject-$(date +%Y%m%d).vfs
+cp ~/.avfs/vaults/myproject.avfs ~/backups/myproject-$(date +%Y%m%d).avfs
 
-# Or use vfs export for a tarball
-vfs export / ~/backups/myproject-export.tar.gz --recursive
+# Or use avfs export for a tarball
+avfs export / ~/backups/myproject-export.tar.gz --recursive
 ```
 
 ### Online Backup
 
-For backing up while vfs is in use:
+For backing up while avfs is in use:
 
 ```bash
-sqlite3 ~/.vfs/vaults/myproject.vfs ".backup ~/backups/myproject.vfs"
+sqlite3 ~/.avfs/vaults/myproject.avfs ".backup ~/backups/myproject.avfs"
 ```
 
 ### Restore from Backup
 
 ```bash
 # Register the backup as a vault
-vfs vault create restored --path ~/backups/myproject-backup.vfs
+avfs vault create restored --path ~/backups/myproject-backup.avfs
 
 # Or copy it to the vaults directory
-cp ~/backups/myproject-backup.vfs ~/.vfs/vaults/restored.vfs
-vfs vault use restored
+cp ~/backups/myproject-backup.avfs ~/.avfs/vaults/restored.avfs
+avfs vault use restored
 ```
 
 ## Importing External Databases
 
-Register an existing vfs database:
+Register an existing avfs database:
 
 ```bash
-vfs vault import <name> <path>
+avfs vault import <name> <path>
 ```
 
 ```bash
-$ vfs vault import colleague-project ~/Downloads/shared-project.vfs
+$ avfs vault import colleague-project ~/Downloads/shared-project.avfs
 Registered vault 'colleague-project'
 ```
 
@@ -276,15 +276,15 @@ This creates a reference to the external database without copying it.
 
 ### Moving Vaults Between Machines
 
-1. Copy the `.vfs` file to the target machine
-2. Register it with `vfs vault import`
+1. Copy the `.avfs` file to the target machine
+2. Register it with `avfs vault import`
 
 ```bash
 # On source machine
-scp ~/.vfs/vaults/myproject.vfs user@target:~/myproject.vfs
+scp ~/.avfs/vaults/myproject.avfs user@target:~/myproject.avfs
 
 # On target machine
-vfs vault import myproject ~/myproject.vfs
+avfs vault import myproject ~/myproject.avfs
 ```
 
 ### Cloud Sync
@@ -293,7 +293,7 @@ Vault files can be synced via cloud storage:
 
 ```bash
 # Store vault in Dropbox
-vfs vault create shared --path ~/Dropbox/vfs/shared.vfs
+avfs vault create shared --path ~/Dropbox/avfs/shared.avfs
 
 # Note: Avoid simultaneous access from multiple machines
 ```
@@ -308,10 +308,10 @@ vfs vault create shared --path ~/Dropbox/vfs/shared.vfs
 Error: Vault is locked by another process
 ```
 
-Another vfs instance is using the vault. Check for:
+Another avfs instance is using the vault. Check for:
 - Other terminal sessions
-- Background vfs processes
-- Stale lock files (in `~/.vfs/locks/`)
+- Background avfs processes
+- Stale lock files (in `~/.avfs/locks/`)
 
 ### Corrupt Vault
 
@@ -319,11 +319,11 @@ If a vault becomes corrupted:
 
 ```bash
 # Check integrity
-sqlite3 ~/.vfs/vaults/damaged.vfs "PRAGMA integrity_check"
+sqlite3 ~/.avfs/vaults/damaged.avfs "PRAGMA integrity_check"
 
 # Attempt recovery
-sqlite3 ~/.vfs/vaults/damaged.vfs ".recover" | sqlite3 recovered.vfs
-vfs vault import recovered recovered.vfs
+sqlite3 ~/.avfs/vaults/damaged.avfs ".recover" | sqlite3 recovered.avfs
+avfs vault import recovered recovered.avfs
 ```
 
 ### Vault Not Found
@@ -335,12 +335,12 @@ Error: Vault 'missing' not found
 Check if the vault exists:
 
 ```bash
-vfs vault list
-ls ~/.vfs/vaults/
+avfs vault list
+ls ~/.avfs/vaults/
 ```
 
 If the database file exists but isn't registered, import it:
 
 ```bash
-vfs vault import missing ~/.vfs/vaults/missing.vfs
+avfs vault import missing ~/.avfs/vaults/missing.avfs
 ```

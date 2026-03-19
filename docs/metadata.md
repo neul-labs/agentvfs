@@ -1,6 +1,6 @@
 # Metadata & Tags
 
-vfs supports rich metadata for organizing and finding files through tags and custom key-value attributes.
+avfs supports rich metadata for organizing and finding files through tags and custom key-value attributes.
 
 ## Tags
 
@@ -9,23 +9,23 @@ Tags are labels you can attach to files for organization and quick retrieval.
 ### Adding Tags
 
 ```bash
-vfs tag <path> <tag>...
+avfs tag <path> <tag>...
 ```
 
 **Examples:**
 
 ```bash
 # Single tag
-vfs tag /docs/report.pdf important
+avfs tag /docs/report.pdf important
 
 # Multiple tags
-vfs tag /docs/report.pdf important urgent work
+avfs tag /docs/report.pdf important urgent work
 
 # Tag with glob pattern
-vfs tag /src/*.rs code rust
+avfs tag /src/*.rs code rust
 
 # Tag files recursively
-vfs tag -r /project/ work
+avfs tag -r /project/ work
 ```
 
 ### Listing Tags
@@ -33,14 +33,14 @@ vfs tag -r /project/ work
 #### Tags on a file
 
 ```bash
-$ vfs tag /docs/report.pdf
+$ avfs tag /docs/report.pdf
 important, urgent, work
 ```
 
 #### All tags in vault
 
 ```bash
-$ vfs tag --list
+$ avfs tag --list
 TAG          COUNT
 important    23
 urgent       8
@@ -54,42 +54,42 @@ rust         78
 ### Removing Tags
 
 ```bash
-vfs untag <path> <tag>...
+avfs untag <path> <tag>...
 ```
 
 **Examples:**
 
 ```bash
 # Remove single tag
-vfs untag /docs/report.pdf urgent
+avfs untag /docs/report.pdf urgent
 
 # Remove multiple tags
-vfs untag /docs/report.pdf work important
+avfs untag /docs/report.pdf work important
 
 # Remove from pattern
-vfs untag /archive/*.txt important
+avfs untag /archive/*.txt important
 ```
 
 ### Finding Files by Tag
 
 ```bash
-vfs find / -tag <tag>
+avfs find / -tag <tag>
 ```
 
 **Examples:**
 
 ```bash
-$ vfs find / -tag important
+$ avfs find / -tag important
 /docs/report.pdf
 /config/production.yaml
 /notes/meeting-2024-03-10.md
 
 # Multiple tags (AND)
-$ vfs find / -tag important -tag urgent
+$ avfs find / -tag important -tag urgent
 /docs/report.pdf
 
 # Combine with other filters
-$ vfs find /docs -tag work -name "*.pdf"
+$ avfs find /docs -tag work -name "*.pdf"
 /docs/report.pdf
 /docs/presentation.pdf
 ```
@@ -99,17 +99,17 @@ $ vfs find /docs -tag work -name "*.pdf"
 Tags can have colors for visual organization:
 
 ```bash
-vfs tag --create important --color red
-vfs tag --create work --color blue
-vfs tag --create personal --color green
+avfs tag --create important --color red
+avfs tag --create work --color blue
+avfs tag --create personal --color green
 ```
 
-Colors are displayed in `vfs ls` output and interactive shell.
+Colors are displayed in `avfs ls` output and interactive shell.
 
 ### Renaming Tags
 
 ```bash
-vfs tag --rename old-tag new-tag
+avfs tag --rename old-tag new-tag
 ```
 
 Updates the tag name on all associated files.
@@ -117,7 +117,7 @@ Updates the tag name on all associated files.
 ### Deleting Tags
 
 ```bash
-vfs tag --delete unused-tag
+avfs tag --delete unused-tag
 ```
 
 Removes the tag from all files and deletes the tag definition.
@@ -129,36 +129,36 @@ Beyond tags, you can store arbitrary key-value metadata on files.
 ### Setting Metadata
 
 ```bash
-vfs meta <path> <key> <value>
+avfs meta <path> <key> <value>
 ```
 
 **Examples:**
 
 ```bash
 # Set author
-vfs meta /docs/report.pdf author "Jane Doe"
+avfs meta /docs/report.pdf author "Jane Doe"
 
 # Set multiple properties
-vfs meta /docs/report.pdf department "Engineering"
-vfs meta /docs/report.pdf status "draft"
-vfs meta /docs/report.pdf priority "high"
+avfs meta /docs/report.pdf department "Engineering"
+avfs meta /docs/report.pdf status "draft"
+avfs meta /docs/report.pdf priority "high"
 
 # Numeric values
-vfs meta /data/dataset.csv row_count "10000"
+avfs meta /data/dataset.csv row_count "10000"
 
 # Date values
-vfs meta /docs/contract.pdf signed_date "2024-03-15"
+avfs meta /docs/contract.pdf signed_date "2024-03-15"
 ```
 
 ### Reading Metadata
 
 ```bash
 # Get specific key
-$ vfs meta /docs/report.pdf author
+$ avfs meta /docs/report.pdf author
 Jane Doe
 
 # Get all metadata
-$ vfs meta /docs/report.pdf
+$ avfs meta /docs/report.pdf
 KEY          VALUE
 author       Jane Doe
 department   Engineering
@@ -169,53 +169,53 @@ priority     high
 ### Removing Metadata
 
 ```bash
-vfs meta --unset <path> <key>
+avfs meta --unset <path> <key>
 ```
 
 **Example:**
 
 ```bash
-vfs meta --unset /docs/report.pdf status
+avfs meta --unset /docs/report.pdf status
 ```
 
 ### Finding by Metadata
 
 ```bash
-vfs find / -meta <key>=<value>
+avfs find / -meta <key>=<value>
 ```
 
 **Examples:**
 
 ```bash
 # Find by author
-$ vfs find / -meta author="Jane Doe"
+$ avfs find / -meta author="Jane Doe"
 /docs/report.pdf
 /docs/presentation.pdf
 
 # Find by status
-$ vfs find / -meta status=draft
+$ avfs find / -meta status=draft
 /docs/report.pdf
 /src/feature.rs
 
 # Combine with other filters
-$ vfs find /docs -meta department=Engineering -name "*.pdf"
+$ avfs find /docs -meta department=Engineering -name "*.pdf"
 ```
 
 ### Metadata Operators
 
 ```bash
 # Equals
-vfs find / -meta priority=high
+avfs find / -meta priority=high
 
 # Not equals
-vfs find / -meta status!=draft
+avfs find / -meta status!=draft
 
 # Contains (for string values)
-vfs find / -meta author~=Jane
+avfs find / -meta author~=Jane
 
 # Greater/less than (for numeric values)
-vfs find / -meta row_count>1000
-vfs find / -meta file_size<1048576
+avfs find / -meta row_count>1000
+avfs find / -meta file_size<1048576
 ```
 
 ## Integration with Search
@@ -223,7 +223,7 @@ vfs find / -meta file_size<1048576
 ### Search with Tag Filter
 
 ```bash
-vfs grep "TODO" / --tag code
+avfs grep "TODO" / --tag code
 ```
 
 Only searches files with the "code" tag.
@@ -231,7 +231,7 @@ Only searches files with the "code" tag.
 ### Search with Metadata Filter
 
 ```bash
-vfs grep "bug" / --meta status=active
+avfs grep "bug" / --meta status=active
 ```
 
 ## Metadata in ls Output
@@ -239,7 +239,7 @@ vfs grep "bug" / --meta status=active
 ### Long Format with Tags
 
 ```bash
-$ vfs ls -l --tags /docs/
+$ avfs ls -l --tags /docs/
 TYPE  SIZE     MODIFIED             TAGS                    NAME
 f     125 KB   2024-03-10 14:22     important, work         report.pdf
 f     45 KB    2024-03-09 10:15     work                    notes.txt
@@ -249,7 +249,7 @@ d     -        2024-03-08 09:30                             archive/
 ### Long Format with Metadata
 
 ```bash
-$ vfs ls -l --meta /docs/
+$ avfs ls -l --meta /docs/
 TYPE  SIZE     AUTHOR      STATUS  NAME
 f     125 KB   Jane Doe    draft   report.pdf
 f     45 KB    John Smith  final   notes.txt
@@ -258,7 +258,7 @@ f     45 KB    John Smith  final   notes.txt
 Custom metadata columns with `--meta`:
 
 ```bash
-vfs ls -l --meta=author,status,priority /docs/
+avfs ls -l --meta=author,status,priority /docs/
 ```
 
 ## Bulk Operations
@@ -267,30 +267,30 @@ vfs ls -l --meta=author,status,priority /docs/
 
 ```bash
 # From find results
-vfs find / -name "*.log" -exec vfs tag {} archive
+avfs find / -name "*.log" -exec avfs tag {} archive
 
 # Using xargs
-vfs find / -size +10M | xargs -I {} vfs tag {} large-file
+avfs find / -size +10M | xargs -I {} avfs tag {} large-file
 ```
 
 ### Copy Metadata
 
 ```bash
 # Copy all tags from one file to another
-vfs tag --copy /docs/template.pdf /docs/new-doc.pdf
+avfs tag --copy /docs/template.pdf /docs/new-doc.pdf
 
 # Copy specific metadata
-vfs meta --copy /docs/template.pdf /docs/new-doc.pdf author department
+avfs meta --copy /docs/template.pdf /docs/new-doc.pdf author department
 ```
 
 ### Export/Import Metadata
 
 ```bash
 # Export metadata to JSON
-vfs meta --export /docs/ > metadata.json
+avfs meta --export /docs/ > metadata.json
 
 # Import metadata from JSON
-vfs meta --import metadata.json
+avfs meta --import metadata.json
 ```
 
 **JSON format:**
@@ -323,10 +323,10 @@ Some metadata keys are reserved for system use:
 Access with:
 
 ```bash
-$ vfs meta /docs/file.txt _size
+$ avfs meta /docs/file.txt _size
 1234
 
-$ vfs meta /docs/file.txt _modified
+$ avfs meta /docs/file.txt _modified
 2024-03-10T14:22:15Z
 ```
 
@@ -336,51 +336,51 @@ $ vfs meta /docs/file.txt _modified
 
 ```bash
 # Set up project tags
-vfs tag --create frontend --color blue
-vfs tag --create backend --color green
-vfs tag --create docs --color yellow
+avfs tag --create frontend --color blue
+avfs tag --create backend --color green
+avfs tag --create docs --color yellow
 
 # Tag project files
-vfs tag /src/ui/*.tsx frontend
-vfs tag /src/api/*.rs backend
-vfs tag /docs/*.md docs
+avfs tag /src/ui/*.tsx frontend
+avfs tag /src/api/*.rs backend
+avfs tag /docs/*.md docs
 
 # Find all frontend code
-vfs find / -tag frontend
+avfs find / -tag frontend
 ```
 
 ### Document Management
 
 ```bash
 # Track document metadata
-vfs meta /contracts/client-a.pdf client "Acme Corp"
-vfs meta /contracts/client-a.pdf value "50000"
-vfs meta /contracts/client-a.pdf expires "2025-12-31"
+avfs meta /contracts/client-a.pdf client "Acme Corp"
+avfs meta /contracts/client-a.pdf value "50000"
+avfs meta /contracts/client-a.pdf expires "2025-12-31"
 
 # Find expiring contracts
-vfs find /contracts -meta expires<"2024-06-01"
+avfs find /contracts -meta expires<"2024-06-01"
 ```
 
 ### Asset Pipeline
 
 ```bash
 # Track image metadata
-vfs meta /assets/hero.png width "1920"
-vfs meta /assets/hero.png height "1080"
-vfs meta /assets/hero.png format "png"
+avfs meta /assets/hero.png width "1920"
+avfs meta /assets/hero.png height "1080"
+avfs meta /assets/hero.png format "png"
 
 # Find high-res images
-vfs find /assets -meta width>1000
+avfs find /assets -meta width>1000
 ```
 
 ### Research Notes
 
 ```bash
 # Organize research
-vfs tag /notes/paper-1.md read cite
-vfs meta /notes/paper-1.md source "arxiv:2024.12345"
-vfs meta /notes/paper-1.md relevance "high"
+avfs tag /notes/paper-1.md read cite
+avfs meta /notes/paper-1.md source "arxiv:2024.12345"
+avfs meta /notes/paper-1.md relevance "high"
 
 # Find papers to cite
-vfs find /notes -tag cite -meta relevance=high
+avfs find /notes -tag cite -meta relevance=high
 ```

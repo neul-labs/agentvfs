@@ -1,13 +1,13 @@
-//! Global vfs configuration.
+//! Global avfs configuration.
 
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::error::{Result, VfsError};
 
-/// Global vfs configuration directory.
+/// Global avfs configuration directory.
 pub struct Config {
-    /// Base directory (~/.vfs)
+    /// Base directory (~/.avfs)
     base_dir: PathBuf,
 }
 
@@ -27,12 +27,12 @@ impl Config {
         Ok(config)
     }
 
-    /// Get the default base directory (~/.vfs).
+    /// Get the default base directory (~/.avfs).
     fn default_base_dir() -> Result<PathBuf> {
         let home = dirs::home_dir().ok_or_else(|| {
             VfsError::Internal("could not determine home directory".to_string())
         })?;
-        Ok(home.join(".vfs"))
+        Ok(home.join(".avfs"))
     }
 
     /// Ensure all required directories exist.
@@ -53,7 +53,7 @@ impl Config {
 
     /// Get the path to a vault's database file.
     pub fn vault_path(&self, name: &str) -> PathBuf {
-        self.vaults_dir().join(format!("{}.vfs", name))
+        self.vaults_dir().join(format!("{}.avfs", name))
     }
 
     /// Get the path to the current vault file.
@@ -116,7 +116,7 @@ impl Config {
         for entry in fs::read_dir(&vaults_dir)? {
             let entry = entry?;
             let path = entry.path();
-            if path.extension().map_or(false, |ext| ext == "vfs") {
+            if path.extension().map_or(false, |ext| ext == "avfs") {
                 if let Some(stem) = path.file_stem() {
                     vaults.push(stem.to_string_lossy().to_string());
                 }
@@ -140,8 +140,8 @@ impl Config {
         }
 
         // Also delete WAL and SHM files if they exist
-        let wal_path = path.with_extension("vfs-wal");
-        let shm_path = path.with_extension("vfs-shm");
+        let wal_path = path.with_extension("avfs-wal");
+        let shm_path = path.with_extension("avfs-shm");
 
         fs::remove_file(&path)?;
         let _ = fs::remove_file(&wal_path);

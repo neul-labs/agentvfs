@@ -1,18 +1,18 @@
 # Interactive Shell
 
-VFS provides an interactive shell mode where you can use commands without the `vfs` prefix.
+VFS provides an interactive shell mode where you can use commands without the `avfs` prefix.
 
 ## Starting the Shell
 
 ```bash
-vfs shell
+avfs shell
 ```
 
 This launches an interactive REPL:
 
 ```bash
-$ vfs shell
-vfs - Virtual Filesystem Shell
+$ avfs shell
+avfs - Virtual Filesystem Shell
 Type 'help' for commands, 'exit' to quit.
 
 [default] / >
@@ -39,7 +39,7 @@ The prompt shows:
 
 ## Using Commands
 
-In shell mode, commands work without the `vfs` prefix:
+In shell mode, commands work without the `avfs` prefix:
 
 ```bash
 [default] / > ls
@@ -148,12 +148,12 @@ grep
 
 ### History Persistence
 
-Command history is saved to `~/.vfs/history` and persists across sessions.
+Command history is saved to `~/.avfs/history` and persists across sessions.
 
 Disable history with:
 
 ```bash
-vfs shell --no-history
+avfs shell --no-history
 ```
 
 ## Keyboard Shortcuts
@@ -175,10 +175,10 @@ vfs shell --no-history
 Generate aliases for your regular shell:
 
 ```bash
-$ vfs aliases
-alias vls='vfs ls'
-alias vcat='vfs cat'
-alias vwrite='vfs write'
+$ avfs aliases
+alias vls='avfs ls'
+alias vcat='avfs cat'
+alias vwrite='avfs write'
 ...
 ```
 
@@ -188,21 +188,21 @@ alias vwrite='vfs write'
 
     ```bash
     # Add to ~/.bashrc
-    eval "$(vfs aliases --format bash)"
+    eval "$(avfs aliases --format bash)"
     ```
 
 === "Zsh"
 
     ```bash
     # Add to ~/.zshrc
-    eval "$(vfs aliases --format zsh)"
+    eval "$(avfs aliases --format zsh)"
     ```
 
 === "Fish"
 
     ```bash
     # Add to ~/.config/fish/config.fish
-    vfs aliases --format fish | source
+    avfs aliases --format fish | source
     ```
 
 Then use directly from your shell:

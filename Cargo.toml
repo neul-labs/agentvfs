@@ -1,10 +1,10 @@
 [package]
-name = "vfs"
+name = "agentvfs"
 version = "0.1.0"
 edition = "2021"
 description = "Virtual filesystem CLI backed by embedded databases"
 license = "MIT"
-repository = "https://github.com/yourusername/vfs"
+repository = "https://github.com/yourusername/agentvfs"
 
 [dependencies]
 # CLI
@@ -49,9 +49,9 @@ fuse = ["fuser", "libc"]
 [dev-dependencies]
 
 [[bin]]
-name = "vfs"
+name = "avfs"
 path = "src/main.rs"
 
 [lib]
-name = "vfs"
+name = "agentvfs"
 path = "src/lib.rs"

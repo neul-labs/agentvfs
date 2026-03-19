@@ -11,7 +11,7 @@ use crate::vault::VaultManager;
 
 use super::completion::ShellHelper;
 
-/// Interactive shell for vfs.
+/// Interactive shell for avfs.
 pub struct Shell {
     /// Rustyline editor.
     editor: Editor<ShellHelper, rustyline::history::DefaultHistory>,
@@ -38,7 +38,7 @@ impl Shell {
         editor.set_helper(Some(ShellHelper::new()));
 
         let history_path = if persist_history {
-            dirs::home_dir().map(|h| h.join(".vfs").join("history"))
+            dirs::home_dir().map(|h| h.join(".avfs").join("history"))
         } else {
             None
         };
@@ -68,7 +68,7 @@ impl Shell {
 
     /// Run the interactive shell.
     pub fn run(&mut self) -> Result<()> {
-        println!("vfs interactive shell");
+        println!("avfs interactive shell");
         println!("Type 'help' for available commands, 'exit' to quit.\n");
 
         loop {
@@ -163,8 +163,8 @@ impl Shell {
             return;
         }
 
-        // Prepend "vfs" to make it a valid CLI invocation
-        let full_args: Vec<String> = std::iter::once("vfs".to_string())
+        // Prepend "avfs" to make it a valid CLI invocation
+        let full_args: Vec<String> = std::iter::once("avfs".to_string())
             .chain(args.into_iter())
             .collect();
 
@@ -181,7 +181,7 @@ impl Shell {
         // and handle the command execution here
 
         #[derive(Parser)]
-        #[command(name = "vfs")]
+        #[command(name = "avfs")]
         #[command(version, about = "Virtual filesystem CLI backed by embedded databases")]
         struct Cli {
             #[arg(long, global = true)]

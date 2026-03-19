@@ -32,7 +32,7 @@ The default backend using SQLite with FTS5 for full-text search.
 **Usage:**
 
 ```bash
-vfs vault create myproject --backend sqlite
+avfs vault create myproject --backend sqlite
 ```
 
 ### Sled
@@ -55,7 +55,7 @@ A modern embedded database written in Rust, using a Bw-tree architecture.
 **Usage:**
 
 ```bash
-vfs vault create myproject --backend sled
+avfs vault create myproject --backend sled
 ```
 
 ### LMDB
@@ -78,7 +78,7 @@ Lightning Memory-Mapped Database - extremely fast reads via memory mapping.
 **Usage:**
 
 ```bash
-vfs vault create myproject --backend lmdb
+avfs vault create myproject --backend lmdb
 ```
 
 ### RocksDB
@@ -101,7 +101,7 @@ LSM-tree based storage engine from Facebook, designed for SSDs.
 **Usage:**
 
 ```bash
-vfs vault create myproject --backend rocksdb
+avfs vault create myproject --backend rocksdb
 ```
 
 ## Selecting a Backend
@@ -110,10 +110,10 @@ vfs vault create myproject --backend rocksdb
 
 ```bash
 # Explicit backend selection
-vfs vault create myproject --backend sled
+avfs vault create myproject --backend sled
 
 # Use default (SQLite)
-vfs vault create myproject
+avfs vault create myproject
 ```
 
 ### Choosing Based on Workload
@@ -141,7 +141,7 @@ vfs vault create myproject
 Convert a vault from one backend to another:
 
 ```bash
-vfs vault migrate myproject --to sled
+avfs vault migrate myproject --to sled
 ```
 
 This:
@@ -155,13 +155,13 @@ This:
 
 ```bash
 # Keep original vault
-vfs vault migrate myproject --to sled --keep-original
+avfs vault migrate myproject --to sled --keep-original
 
 # Custom destination
-vfs vault migrate myproject --to lmdb --output /path/to/new.vfs
+avfs vault migrate myproject --to lmdb --output /path/to/new.avfs
 
 # Verify without migrating
-vfs vault migrate myproject --to sled --dry-run
+avfs vault migrate myproject --to sled --dry-run
 ```
 
 ## Troubleshooting
@@ -175,7 +175,7 @@ Error: Backend 'rocksdb' is not compiled in this build
 VFS may be compiled without certain backends. Check available backends:
 
 ```bash
-vfs --version
+avfs --version
 ```
 
 ### Migration Fails
@@ -184,13 +184,13 @@ Try manual migration:
 
 ```bash
 # Export all data
-vfs export / /tmp/vault-export --recursive
+avfs export / /tmp/vault-export --recursive
 
 # Create new vault with desired backend
-vfs vault create newvault --backend sled
+avfs vault create newvault --backend sled
 
 # Import data
-vfs --vault newvault import /tmp/vault-export /
+avfs --vault newvault import /tmp/vault-export /
 ```
 
 ### Performance Issues
@@ -198,11 +198,11 @@ vfs --vault newvault import /tmp/vault-export /
 Check backend statistics:
 
 ```bash
-vfs stats
+avfs stats
 ```
 
 Try compaction:
 
 ```bash
-vfs compact
+avfs compact
 ```

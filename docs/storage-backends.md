@@ -1,6 +1,6 @@
 # Storage Backends
 
-vfs uses a pluggable storage backend architecture, allowing different embedded databases to be used as the underlying storage engine.
+avfs uses a pluggable storage backend architecture, allowing different embedded databases to be used as the underlying storage engine.
 
 ## Overview
 
@@ -12,7 +12,7 @@ The storage backend abstraction provides:
 
 ## Available Backends
 
-All vault files use the `.vfs` extension regardless of backend. The backend type is stored in vault metadata.
+All vault files use the `.avfs` extension regardless of backend. The backend type is stored in vault metadata.
 
 | Backend | Best For | Trade-offs |
 |---------|----------|------------|
@@ -40,7 +40,7 @@ The default backend using SQLite with FTS5 for full-text search.
 
 **Usage:**
 ```bash
-vfs vault create myproject --backend sqlite
+avfs vault create myproject --backend sqlite
 ```
 
 **Configuration:**
@@ -69,7 +69,7 @@ A modern embedded database written in Rust, using a Bw-tree architecture.
 
 **Usage:**
 ```bash
-vfs vault create myproject --backend sled
+avfs vault create myproject --backend sled
 ```
 
 **Configuration:**
@@ -97,7 +97,7 @@ Lightning Memory-Mapped Database - extremely fast reads via memory mapping.
 
 **Usage:**
 ```bash
-vfs vault create myproject --backend lmdb
+avfs vault create myproject --backend lmdb
 ```
 
 **Configuration:**
@@ -125,7 +125,7 @@ LSM-tree based storage engine from Facebook, designed for SSDs.
 
 **Usage:**
 ```bash
-vfs vault create myproject --backend rocksdb
+avfs vault create myproject --backend rocksdb
 ```
 
 **Configuration:**
@@ -143,7 +143,7 @@ Non-persistent backend for testing and temporary use.
 
 **Usage:**
 ```bash
-vfs vault create temp --backend memory
+avfs vault create temp --backend memory
 
 # Or for testing
 VFS_BACKEND=memory cargo test
@@ -155,10 +155,10 @@ VFS_BACKEND=memory cargo test
 
 ```bash
 # Explicit backend selection
-vfs vault create myproject --backend sled
+avfs vault create myproject --backend sled
 
 # Use default (SQLite)
-vfs vault create myproject
+avfs vault create myproject
 ```
 
 ### Default Backend
@@ -166,14 +166,14 @@ vfs vault create myproject
 Set the default backend in global config:
 
 ```toml
-# ~/.vfs/config.toml
+# ~/.avfs/config.toml
 [defaults]
 backend = "sqlite"   # or sled, lmdb, rocksdb
 ```
 
 ### Per-Vault Detection
 
-The backend type is stored in vault metadata. vfs automatically detects and uses the correct backend when opening a vault.
+The backend type is stored in vault metadata. avfs automatically detects and uses the correct backend when opening a vault.
 
 ## Backend Trait Interface
 
@@ -375,7 +375,7 @@ pub fn create_backend(
 Convert a vault from one backend to another:
 
 ```bash
-vfs vault migrate myproject --to sled
+avfs vault migrate myproject --to sled
 ```
 
 This:
@@ -388,13 +388,13 @@ This:
 
 ```bash
 # Keep original vault
-vfs vault migrate myproject --to sled --keep-original
+avfs vault migrate myproject --to sled --keep-original
 
 # Custom destination
-vfs vault migrate myproject --to lmdb --output /path/to/new.vfs
+avfs vault migrate myproject --to lmdb --output /path/to/new.avfs
 
 # Verify without migrating
-vfs vault migrate myproject --to sled --dry-run
+avfs vault migrate myproject --to sled --dry-run
 ```
 
 ## Performance Comparison
@@ -430,10 +430,10 @@ Benchmark results (example, actual results vary by hardware):
 Error: Backend 'rocksdb' is not compiled in this build
 ```
 
-vfs may be compiled without certain backends. Check available backends:
+avfs may be compiled without certain backends. Check available backends:
 
 ```bash
-vfs --version --backends
+avfs --version --backends
 ```
 
 Compile with specific backends:
@@ -452,13 +452,13 @@ Try manual migration:
 
 ```bash
 # Export all data
-vfs export / /tmp/vault-export --recursive
+avfs export / /tmp/vault-export --recursive
 
 # Create new vault with desired backend
-vfs vault create newvault --backend sled
+avfs vault create newvault --backend sled
 
 # Import data
-vfs --vault newvault import /tmp/vault-export /
+avfs --vault newvault import /tmp/vault-export /
 ```
 
 ### Performance Issues
@@ -466,11 +466,11 @@ vfs --vault newvault import /tmp/vault-export /
 Check backend statistics:
 
 ```bash
-vfs vault stats --backend-info
+avfs vault stats --backend-info
 ```
 
 Try compaction:
 
 ```bash
-vfs compact
+avfs compact
 ```

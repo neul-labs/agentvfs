@@ -1,10 +1,10 @@
 # Agent Integration
 
-This guide explains how to use vfs as a sandboxed filesystem for AI agents.
+This guide explains how to use avfs as a sandboxed filesystem for AI agents.
 
 ## Overview
 
-vfs provides a safe, isolated filesystem for AI agents to:
+avfs provides a safe, isolated filesystem for AI agents to:
 - Read and write files without touching the real filesystem
 - Experiment freely with snapshot/restore for rollback
 - Operate within resource quotas to prevent runaway behavior
@@ -21,27 +21,27 @@ class VFS:
         self.vault = vault
 
     def run(self, *args):
-        """Execute a vfs command and return parsed JSON."""
-        cmd = ["vfs", "--vault", self.vault, "--json"] + list(args)
+        """Execute a avfs command and return parsed JSON."""
+        cmd = ["avfs", "--vault", self.vault, "--json"] + list(args)
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:
             error = json.loads(result.stdout) if result.stdout else {"error": result.stderr}
-            raise Exception(f"vfs error: {error}")
+            raise Exception(f"avfs error: {error}")
         return json.loads(result.stdout) if result.stdout else None
 
 # Initialize
-vfs = VFS("agent-workspace")
+avfs = VFS("agent-workspace")
 
 # Create workspace
-vfs.run("mkdir", "/workspace")
-vfs.run("write", "/workspace/hello.txt", "Hello, World!")
+avfs.run("mkdir", "/workspace")
+avfs.run("write", "/workspace/hello.txt", "Hello, World!")
 
 # Read back
-result = vfs.run("cat", "/workspace/hello.txt")
+result = avfs.run("cat", "/workspace/hello.txt")
 print(result["content"])  # "Hello, World!"
 
 # List files
-result = vfs.run("ls", "/workspace")
+result = avfs.run("ls", "/workspace")
 for entry in result["entries"]:
     print(f"{entry['name']} ({entry['type']})")
 ```
@@ -54,7 +54,7 @@ All commands support `--json` for structured output that agents can parse.
 
 ```bash
 # List directory
-$ vfs ls --json /docs
+$ avfs ls --json /docs
 {
   "path": "/docs",
   "entries": [
@@ -73,7 +73,7 @@ $ vfs ls --json /docs
 }
 
 # Read file
-$ vfs cat --json /docs/readme.txt
+$ avfs cat --json /docs/readme.txt
 {
   "path": "/docs/readme.txt",
   "content": "Hello, World!",
@@ -83,7 +83,7 @@ $ vfs cat --json /docs/readme.txt
 }
 
 # Write file
-$ vfs write --json /docs/new.txt "content here"
+$ avfs write --json /docs/new.txt "content here"
 {
   "path": "/docs/new.txt",
   "size": 12,
@@ -92,7 +92,7 @@ $ vfs write --json /docs/new.txt "content here"
 }
 
 # Search
-$ vfs grep --json "TODO" /src/
+$ avfs grep --json "TODO" /src/
 {
   "pattern": "TODO",
   "matches": [
@@ -111,14 +111,14 @@ $ vfs grep --json "TODO" /src/
 Errors return JSON with consistent structure:
 
 ```bash
-$ vfs cat --json /nonexistent
+$ avfs cat --json /nonexistent
 {
   "error": "NotFound",
   "message": "File not found: /nonexistent",
   "path": "/nonexistent"
 }
 
-$ vfs write --json /docs/file.txt "content"
+$ avfs write --json /docs/file.txt "content"
 {
   "error": "QuotaExceeded",
   "message": "Vault would exceed max_size_mb limit (100 MB)",
@@ -140,7 +140,7 @@ Snapshots save the entire vault state, allowing agents to experiment and rollbac
 
 ```bash
 # Save state before experiment
-$ vfs snapshot save before-experiment
+$ avfs snapshot save before-experiment
 {
   "name": "before-experiment",
   "created": "2024-03-10T14:00:00Z",
@@ -148,12 +148,12 @@ $ vfs snapshot save before-experiment
 }
 
 # Agent does work...
-$ vfs mkdir /experiment
-$ vfs write /experiment/code.py "print('test')"
-$ vfs rm /important/file.txt  # Oops!
+$ avfs mkdir /experiment
+$ avfs write /experiment/code.py "print('test')"
+$ avfs rm /important/file.txt  # Oops!
 
 # Restore to saved state
-$ vfs snapshot restore before-experiment
+$ avfs snapshot restore before-experiment
 {
   "restored": "before-experiment",
   "previous_state": "auto-backup-1710072000"
@@ -166,7 +166,7 @@ $ vfs snapshot restore before-experiment
 
 ```bash
 # List all snapshots
-$ vfs snapshot list --json
+$ avfs snapshot list --json
 {
   "snapshots": [
     {
@@ -183,10 +183,10 @@ $ vfs snapshot list --json
 }
 
 # Delete a snapshot
-$ vfs snapshot delete initial
+$ avfs snapshot delete initial
 
 # Create snapshot with auto-generated name
-$ vfs snapshot save
+$ avfs snapshot save
 {
   "name": "snapshot-1710072000",
   "created": "2024-03-10T14:00:00Z",
@@ -197,10 +197,10 @@ $ vfs snapshot save
 ### Agent Pattern: Experiment Loop
 
 ```python
-def experiment_safely(vfs, experiment_fn):
+def experiment_safely(avfs, experiment_fn):
     """Run experiment with automatic rollback on failure."""
     # Save state
-    snapshot = vfs.run("snapshot", "save")
+    snapshot = avfs.run("snapshot", "save")
     snapshot_name = snapshot["name"]
 
     try:
@@ -208,11 +208,11 @@ def experiment_safely(vfs, experiment_fn):
         return {"success": True, "result": result}
     except Exception as e:
         # Rollback on failure
-        vfs.run("snapshot", "restore", snapshot_name)
+        avfs.run("snapshot", "restore", snapshot_name)
         return {"success": False, "error": str(e), "rolled_back": True}
     finally:
         # Clean up snapshot
-        vfs.run("snapshot", "delete", snapshot_name)
+        avfs.run("snapshot", "delete", snapshot_name)
 ```
 
 ## Quotas
@@ -223,12 +223,12 @@ Quotas prevent agents from consuming excessive resources.
 
 ```bash
 # Set limits
-$ vfs vault config max_size_mb 100      # Total vault size
-$ vfs vault config max_files 10000       # Maximum file count
-$ vfs vault config max_file_size_mb 10   # Single file limit
+$ avfs vault config max_size_mb 100      # Total vault size
+$ avfs vault config max_files 10000       # Maximum file count
+$ avfs vault config max_file_size_mb 10   # Single file limit
 
 # View current limits and usage
-$ vfs vault info --json
+$ avfs vault info --json
 {
   "name": "agent-workspace",
   "size_mb": 45.2,
@@ -251,7 +251,7 @@ $ vfs vault info --json
 When quotas are exceeded, operations fail with clear errors:
 
 ```bash
-$ vfs write --json /large-file "..."
+$ avfs write --json /large-file "..."
 {
   "error": "QuotaExceeded",
   "message": "File size (15 MB) exceeds max_file_size_mb (10 MB)",
@@ -260,7 +260,7 @@ $ vfs write --json /large-file "..."
   "limit": 10
 }
 
-$ vfs touch --json /another-file
+$ avfs touch --json /another-file
 {
   "error": "QuotaExceeded",
   "message": "File count (10000) would exceed max_files limit",
@@ -273,10 +273,10 @@ $ vfs touch --json /another-file
 ### Agent Pattern: Check Before Write
 
 ```python
-def safe_write(vfs, path, content):
+def safe_write(avfs, path, content):
     """Write with quota awareness."""
     # Check current usage
-    info = vfs.run("vault", "info")
+    info = avfs.run("vault", "info")
 
     content_size_mb = len(content.encode()) / (1024 * 1024)
     limits = info.get("limits", {})
@@ -292,7 +292,7 @@ def safe_write(vfs, path, content):
     if current + content_size_mb > max_total:
         raise Exception(f"Would exceed vault size limit: {current + content_size_mb:.1f}MB > {max_total}MB")
 
-    return vfs.run("write", path, content)
+    return avfs.run("write", path, content)
 ```
 
 ## Audit Log
@@ -303,14 +303,14 @@ The audit log records all operations for debugging and analysis.
 
 ```bash
 # Recent operations (human-readable)
-$ vfs audit
+$ avfs audit
 TIMESTAMP            OP       PATH                    RESULT
 2024-03-10 14:22:15  write    /docs/readme.txt        ok
 2024-03-10 14:22:10  mkdir    /docs                   ok
 2024-03-10 14:22:05  rm       /old/file.txt           ok
 
 # JSON output
-$ vfs audit --json --limit 100
+$ avfs audit --json --limit 100
 {
   "entries": [
     {
@@ -327,13 +327,13 @@ $ vfs audit --json --limit 100
 }
 
 # Filter by operation type
-$ vfs audit --json --op write --op rm
+$ avfs audit --json --op write --op rm
 
 # Filter by time range
-$ vfs audit --json --since "2024-03-10T14:00:00Z"
+$ avfs audit --json --since "2024-03-10T14:00:00Z"
 
 # Filter by path prefix
-$ vfs audit --json --path "/docs/"
+$ avfs audit --json --path "/docs/"
 ```
 
 ### Audit Log Schema
@@ -353,9 +353,9 @@ Each entry contains:
 ### Agent Pattern: Debug Failed Operations
 
 ```python
-def debug_last_failure(vfs):
+def debug_last_failure(avfs):
     """Find what went wrong in recent operations."""
-    audit = vfs.run("audit", "--limit", "50")
+    audit = avfs.run("audit", "--limit", "50")
 
     failures = [e for e in audit["entries"] if e["result"] != "ok"]
 
@@ -373,17 +373,17 @@ def debug_last_failure(vfs):
 
 ```bash
 # Clear all entries
-$ vfs audit clear
+$ avfs audit clear
 
 # Audit log auto-rotates at 10k entries by default
-$ vfs vault config audit_max_entries 50000
+$ avfs vault config audit_max_entries 50000
 ```
 
 ## Complete Agent Example
 
 ```python
 #!/usr/bin/env python3
-"""Example agent harness using vfs."""
+"""Example agent harness using avfs."""
 
 import subprocess
 import json
@@ -408,8 +408,8 @@ class VFSAgent:
         self.run("vault", "config", "max_file_size_mb", "5")
 
     def run(self, *args):
-        """Execute vfs command, return parsed JSON."""
-        cmd = ["vfs", "--vault", self.vault, "--json"] + [str(a) for a in args]
+        """Execute avfs command, return parsed JSON."""
+        cmd = ["avfs", "--vault", self.vault, "--json"] + [str(a) for a in args]
         result = subprocess.run(cmd, capture_output=True, text=True)
 
         if result.stdout:
@@ -509,11 +509,11 @@ if __name__ == "__main__":
 ### 1. Always Use JSON Mode
 ```python
 # Good - parseable
-result = subprocess.run(["vfs", "--json", "ls", "/"], capture_output=True)
+result = subprocess.run(["avfs", "--json", "ls", "/"], capture_output=True)
 data = json.loads(result.stdout)
 
 # Bad - fragile text parsing
-result = subprocess.run(["vfs", "ls", "/"], capture_output=True)
+result = subprocess.run(["avfs", "ls", "/"], capture_output=True)
 files = result.stdout.split("\n")  # Breaks on filenames with newlines
 ```
 
@@ -532,14 +532,14 @@ def risky_operation(agent):
 ### 3. Set Appropriate Quotas
 ```bash
 # For code generation agents
-vfs vault config max_size_mb 50
-vfs vault config max_files 500
-vfs vault config max_file_size_mb 1
+avfs vault config max_size_mb 50
+avfs vault config max_files 500
+avfs vault config max_file_size_mb 1
 
 # For data processing agents
-vfs vault config max_size_mb 1000
-vfs vault config max_files 10000
-vfs vault config max_file_size_mb 100
+avfs vault config max_size_mb 1000
+avfs vault config max_files 10000
+avfs vault config max_file_size_mb 100
 ```
 
 ### 4. Use Audit Logs for Debugging

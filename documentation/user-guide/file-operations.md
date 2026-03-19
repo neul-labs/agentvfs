@@ -7,7 +7,7 @@ VFS provides familiar file operations that work just like their Unix counterpart
 ### ls - List Directory Contents
 
 ```bash
-vfs ls [OPTIONS] [PATH]
+avfs ls [OPTIONS] [PATH]
 ```
 
 **Options:**
@@ -23,16 +23,16 @@ vfs ls [OPTIONS] [PATH]
 **Examples:**
 
 ```bash
-vfs ls                    # List current directory
-vfs ls /docs              # List specific directory
-vfs ls -l /docs           # Detailed listing
-vfs ls -laR /             # Full recursive listing
+avfs ls                    # List current directory
+avfs ls /docs              # List specific directory
+avfs ls -l /docs           # Detailed listing
+avfs ls -laR /             # Full recursive listing
 ```
 
 ### tree - Display Directory Tree
 
 ```bash
-vfs tree [OPTIONS] [PATH]
+avfs tree [OPTIONS] [PATH]
 ```
 
 **Options:**
@@ -46,15 +46,15 @@ vfs tree [OPTIONS] [PATH]
 **Examples:**
 
 ```bash
-vfs tree                  # Tree from root
-vfs tree -L 2 /           # Tree with max depth 2
-vfs tree --size /docs     # Tree with file sizes
+avfs tree                  # Tree from root
+avfs tree -L 2 /           # Tree with max depth 2
+avfs tree --size /docs     # Tree with file sizes
 ```
 
 ### pwd - Print Working Directory
 
 ```bash
-vfs pwd
+avfs pwd
 ```
 
 In VFS, the working directory is always `/` unless you're in the interactive shell.
@@ -64,7 +64,7 @@ In VFS, the working directory is always `/` unless you're in the interactive she
 ### cat - Display File Contents
 
 ```bash
-vfs cat [OPTIONS] <PATH>...
+avfs cat [OPTIONS] <PATH>...
 ```
 
 **Options:**
@@ -77,10 +77,10 @@ vfs cat [OPTIONS] <PATH>...
 **Examples:**
 
 ```bash
-vfs cat /docs/readme.txt          # Show file contents
-vfs cat -n /src/main.rs           # With line numbers
-vfs cat -v 3 /docs/readme.txt     # Show version 3
-vfs cat file1.txt file2.txt       # Concatenate multiple files
+avfs cat /docs/readme.txt          # Show file contents
+avfs cat -n /src/main.rs           # With line numbers
+avfs cat -v 3 /docs/readme.txt     # Show version 3
+avfs cat file1.txt file2.txt       # Concatenate multiple files
 ```
 
 ## Writing Files
@@ -88,7 +88,7 @@ vfs cat file1.txt file2.txt       # Concatenate multiple files
 ### write - Write Content to a File
 
 ```bash
-vfs write [OPTIONS] <PATH> [CONTENT]
+avfs write [OPTIONS] <PATH> [CONTENT]
 ```
 
 **Options:**
@@ -102,16 +102,16 @@ vfs write [OPTIONS] <PATH> [CONTENT]
 
 ```bash
 # Write content directly
-vfs write /docs/new.txt "Hello, World!"
+avfs write /docs/new.txt "Hello, World!"
 
 # Append to existing file
-vfs write -a /docs/log.txt "New line"
+avfs write -a /docs/log.txt "New line"
 
 # From stdin
-echo "piped content" | vfs write --stdin /docs/file.txt
+echo "piped content" | avfs write --stdin /docs/file.txt
 
 # Multi-line content
-vfs write /docs/multi.txt "Line 1
+avfs write /docs/multi.txt "Line 1
 Line 2
 Line 3"
 ```
@@ -124,7 +124,7 @@ Line 3"
 ### cp - Copy Files or Directories
 
 ```bash
-vfs cp [OPTIONS] <SOURCE>... <DEST>
+avfs cp [OPTIONS] <SOURCE>... <DEST>
 ```
 
 **Options:**
@@ -139,16 +139,16 @@ vfs cp [OPTIONS] <SOURCE>... <DEST>
 
 ```bash
 # Copy a file
-vfs cp /docs/readme.txt /docs/backup.txt
+avfs cp /docs/readme.txt /docs/backup.txt
 
 # Copy multiple files to a directory
-vfs cp /src/a.txt /src/b.txt /backup/
+avfs cp /src/a.txt /src/b.txt /backup/
 
 # Copy directory recursively
-vfs cp -r /docs /docs-backup
+avfs cp -r /docs /docs-backup
 
 # Copy with rename
-vfs cp /config.txt /config.txt.bak
+avfs cp /config.txt /config.txt.bak
 ```
 
 ## Moving and Renaming
@@ -156,7 +156,7 @@ vfs cp /config.txt /config.txt.bak
 ### mv - Move or Rename Files
 
 ```bash
-vfs mv [OPTIONS] <SOURCE>... <DEST>
+avfs mv [OPTIONS] <SOURCE>... <DEST>
 ```
 
 **Options:**
@@ -170,16 +170,16 @@ vfs mv [OPTIONS] <SOURCE>... <DEST>
 
 ```bash
 # Rename a file
-vfs mv /docs/old.txt /docs/new.txt
+avfs mv /docs/old.txt /docs/new.txt
 
 # Move file to directory
-vfs mv /readme.txt /docs/
+avfs mv /readme.txt /docs/
 
 # Move multiple files
-vfs mv /file1.txt /file2.txt /archive/
+avfs mv /file1.txt /file2.txt /archive/
 
 # Move and rename
-vfs mv /src/main.rs /backup/main.rs.bak
+avfs mv /src/main.rs /backup/main.rs.bak
 ```
 
 ## Creating Directories
@@ -187,7 +187,7 @@ vfs mv /src/main.rs /backup/main.rs.bak
 ### mkdir - Create Directories
 
 ```bash
-vfs mkdir [OPTIONS] <PATH>...
+avfs mkdir [OPTIONS] <PATH>...
 ```
 
 **Options:**
@@ -200,13 +200,13 @@ vfs mkdir [OPTIONS] <PATH>...
 
 ```bash
 # Create a directory
-vfs mkdir /docs
+avfs mkdir /docs
 
 # Create nested directories
-vfs mkdir -p /src/components/ui
+avfs mkdir -p /src/components/ui
 
 # Create multiple directories
-vfs mkdir /logs /temp /cache
+avfs mkdir /logs /temp /cache
 ```
 
 ## Removing Files and Directories
@@ -214,7 +214,7 @@ vfs mkdir /logs /temp /cache
 ### rm - Remove Files or Directories
 
 ```bash
-vfs rm [OPTIONS] <PATH>...
+avfs rm [OPTIONS] <PATH>...
 ```
 
 **Options:**
@@ -228,19 +228,19 @@ vfs rm [OPTIONS] <PATH>...
 
 ```bash
 # Remove a file
-vfs rm /docs/old.txt
+avfs rm /docs/old.txt
 
 # Remove multiple files
-vfs rm /temp/a.txt /temp/b.txt
+avfs rm /temp/a.txt /temp/b.txt
 
 # Remove empty directory
-vfs rm /empty-dir
+avfs rm /empty-dir
 
 # Remove directory with contents
-vfs rm -r /old-project
+avfs rm -r /old-project
 
 # Force remove without confirmation
-vfs rm -rf /temp/
+avfs rm -rf /temp/
 ```
 
 !!! warning "Permanent Deletion"
@@ -254,29 +254,29 @@ vfs rm -rf /temp/
 
 ```bash
 # Write from another command
-echo "Generated content" | vfs write --stdin /generated.txt
+echo "Generated content" | avfs write --stdin /generated.txt
 
 # Read and pipe to another command
-vfs cat /data.json | jq '.items[]'
+avfs cat /data.json | jq '.items[]'
 
 # Copy between files using pipes
-vfs cat /source.txt | vfs write --stdin /dest.txt
+avfs cat /source.txt | avfs write --stdin /dest.txt
 ```
 
 ### Combining with Unix Tools
 
 ```bash
 # Count lines
-vfs cat /data.txt | wc -l
+avfs cat /data.txt | wc -l
 
 # Sort content
-vfs cat /names.txt | sort
+avfs cat /names.txt | sort
 
 # Filter content
-vfs cat /log.txt | grep "ERROR"
+avfs cat /log.txt | grep "ERROR"
 
 # Transform and save
-vfs cat /data.csv | sed 's/,/|/g' | vfs write --stdin /data.psv
+avfs cat /data.csv | sed 's/,/|/g' | avfs write --stdin /data.psv
 ```
 
 ## JSON Output
@@ -285,10 +285,10 @@ All file operations support JSON output for scripting:
 
 ```bash
 # List with JSON
-vfs ls --json /docs
+avfs ls --json /docs
 
 # File info in JSON
-vfs cat --json /docs/readme.txt
+avfs cat --json /docs/readme.txt
 ```
 
 ## Best Practices
@@ -297,27 +297,27 @@ vfs cat --json /docs/readme.txt
 
 ```bash
 # Create a project structure
-vfs mkdir -p /project/{src,docs,tests,config}
+avfs mkdir -p /project/{src,docs,tests,config}
 ```
 
 ### Use Meaningful Names
 
 ```bash
 # Good
-vfs write /docs/user-guide.md "..."
-vfs write /config/database.yaml "..."
+avfs write /docs/user-guide.md "..."
+avfs write /config/database.yaml "..."
 
 # Avoid
-vfs write /d/ug.md "..."
-vfs write /c/db.y "..."
+avfs write /d/ug.md "..."
+avfs write /c/db.y "..."
 ```
 
 ### Regular Cleanup
 
 ```bash
 # Remove temporary files
-vfs rm -r /temp/*
+avfs rm -r /temp/*
 
 # Archive old files
-vfs mv /logs/*.log /archive/logs/
+avfs mv /logs/*.log /archive/logs/
 ```

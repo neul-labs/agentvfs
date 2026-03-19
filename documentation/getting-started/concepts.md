@@ -7,32 +7,32 @@ Understanding these concepts will help you get the most out of VFS.
 A **vault** is a self-contained virtual filesystem stored in a single database file.
 
 ```
-~/.vfs/
-├── project-a.vfs    # One vault
-├── project-b.vfs    # Another vault
-└── experiments.vfs  # A third vault
+~/.avfs/
+├── project-a.avfs    # One vault
+├── project-b.avfs    # Another vault
+└── experiments.avfs  # A third vault
 ```
 
 ### Key Properties
 
 - **Isolated**: Each vault is completely independent
-- **Portable**: Copy the `.vfs` file to move your entire filesystem
+- **Portable**: Copy the `.avfs` file to move your entire filesystem
 - **Single File**: Everything (files, directories, metadata, versions) in one file
 
 ### Working with Vaults
 
 ```bash
 # Create a vault
-vfs vault create myproject
+avfs vault create myproject
 
 # List vaults (current marked with *)
-vfs vault list
+avfs vault list
 
 # Switch vaults
-vfs vault use another-project
+avfs vault use another-project
 
 # Use a specific vault for one command
-vfs --vault myproject ls /
+avfs --vault myproject ls /
 ```
 
 ## Content-Addressable Storage
@@ -58,11 +58,11 @@ VFS uses **content-addressable storage** (CAS), where files are stored by the SH
 
 ```bash
 # Create two files with identical content
-vfs write /file1.txt "Hello World"
-vfs write /file2.txt "Hello World"
+avfs write /file1.txt "Hello World"
+avfs write /file2.txt "Hello World"
 
 # Check storage - only one blob exists!
-vfs stats
+avfs stats
 # Blobs: 1, Total size: 11 bytes
 ```
 
@@ -88,16 +88,16 @@ Every modification to a file creates a new **version**. VFS keeps the complete h
 
 ```bash
 # View history
-vfs log /docs/readme.txt
+avfs log /docs/readme.txt
 
 # Read specific version
-vfs cat -v 2 /docs/readme.txt
+avfs cat -v 2 /docs/readme.txt
 
 # Compare versions
-vfs diff /docs/readme.txt --v1 1 --v2 3
+avfs diff /docs/readme.txt --v1 1 --v2 3
 
 # Restore old version (creates new version with old content)
-vfs checkout /docs/readme.txt -v 2
+avfs checkout /docs/readme.txt -v 2
 ```
 
 ## File Entries vs Content Blobs
@@ -144,9 +144,9 @@ VFS supports rich metadata on files.
 Tags are simple labels attached to files:
 
 ```bash
-vfs tag /report.pdf urgent
-vfs tag /report.pdf quarterly
-vfs find --tag urgent
+avfs tag /report.pdf urgent
+avfs tag /report.pdf quarterly
+avfs find --tag urgent
 ```
 
 ### Custom Metadata
@@ -154,9 +154,9 @@ vfs find --tag urgent
 Key-value pairs for structured data:
 
 ```bash
-vfs meta /report.pdf author "Jane Doe"
-vfs meta /report.pdf department "Finance"
-vfs meta /report.pdf status "approved"
+avfs meta /report.pdf author "Jane Doe"
+avfs meta /report.pdf department "Finance"
+avfs meta /report.pdf status "approved"
 ```
 
 ### Metadata Use Cases
@@ -191,10 +191,10 @@ Every vault has a root directory `/`. This is always your starting point.
 
 ```bash
 # Root is always accessible
-vfs ls /
+avfs ls /
 
 # All paths are absolute from root
-vfs cat /docs/readme.txt
+avfs cat /docs/readme.txt
 
 # There is no "current directory" in VFS
 # (except in interactive shell mode)
@@ -210,14 +210,14 @@ Snapshots capture the entire vault state at a point in time.
 
 ```bash
 # Save current state
-vfs snapshot save before-refactor
+avfs snapshot save before-refactor
 
 # Make changes...
-vfs rm -r /old-code
-vfs mv /new-code /production
+avfs rm -r /old-code
+avfs mv /new-code /production
 
 # Oops! Restore previous state
-vfs snapshot restore before-refactor
+avfs snapshot restore before-refactor
 ```
 
 Snapshots are useful for:

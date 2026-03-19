@@ -1,12 +1,12 @@
-//! Error types for vfs operations.
+//! Error types for avfs operations.
 
 use std::path::PathBuf;
 use thiserror::Error;
 
-/// Result type alias for vfs operations.
+/// Result type alias for avfs operations.
 pub type Result<T> = std::result::Result<T, VfsError>;
 
-/// Error types for vfs operations.
+/// Error types for avfs operations.
 #[derive(Error, Debug)]
 pub enum VfsError {
     /// File or directory not found.
@@ -46,7 +46,7 @@ pub enum VfsError {
     VaultExists(String),
 
     /// No active vault selected.
-    #[error("no active vault - run 'vfs vault create <name>' or 'vfs vault use <name>'")]
+    #[error("no active vault - run 'avfs vault create <name>' or 'avfs vault use <name>'")]
     NoActiveVault,
 
     /// Quota exceeded.

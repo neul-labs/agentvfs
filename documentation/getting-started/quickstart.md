@@ -8,18 +8,18 @@ A **vault** is an independent virtual filesystem stored in a single database fil
 
 ```bash
 # Create a new vault called "myproject"
-vfs vault create myproject
+avfs vault create myproject
 ```
 
 VFS automatically switches to your new vault. You can verify with:
 
 ```bash
-vfs vault list
+avfs vault list
 ```
 
 Output:
 ```
-* myproject    ~/.vfs/myproject.vfs    (current)
+* myproject    ~/.avfs/myproject.avfs    (current)
 ```
 
 ## Basic File Operations
@@ -28,69 +28,69 @@ Output:
 
 ```bash
 # Create a directory
-vfs mkdir /docs
+avfs mkdir /docs
 
 # Create nested directories with -p
-vfs mkdir -p /src/components/ui
+avfs mkdir -p /src/components/ui
 ```
 
 ### Write Files
 
 ```bash
 # Write content to a file
-vfs write /docs/readme.txt "Hello, Virtual World!"
+avfs write /docs/readme.txt "Hello, Virtual World!"
 
 # Append to a file
-vfs write -a /docs/readme.txt "Another line"
+avfs write -a /docs/readme.txt "Another line"
 ```
 
 ### List Contents
 
 ```bash
 # Simple listing
-vfs ls /docs
+avfs ls /docs
 
 # Detailed listing with sizes and dates
-vfs ls -l /docs
+avfs ls -l /docs
 
 # Tree view
-vfs tree /
+avfs tree /
 ```
 
 ### Read Files
 
 ```bash
 # Display file contents
-vfs cat /docs/readme.txt
+avfs cat /docs/readme.txt
 
 # With line numbers
-vfs cat -n /docs/readme.txt
+avfs cat -n /docs/readme.txt
 ```
 
 ### Copy and Move
 
 ```bash
 # Copy a file
-vfs cp /docs/readme.txt /docs/backup.txt
+avfs cp /docs/readme.txt /docs/backup.txt
 
 # Move/rename a file
-vfs mv /docs/backup.txt /archive/readme-old.txt
+avfs mv /docs/backup.txt /archive/readme-old.txt
 
 # Copy a directory recursively
-vfs cp -r /docs /docs-backup
+avfs cp -r /docs /docs-backup
 ```
 
 ### Delete
 
 ```bash
 # Remove a file
-vfs rm /archive/readme-old.txt
+avfs rm /archive/readme-old.txt
 
 # Remove a directory (must be empty)
-vfs rm /empty-dir
+avfs rm /empty-dir
 
 # Remove recursively
-vfs rm -r /docs-backup
+avfs rm -r /docs-backup
 ```
 
 ## Version History
@@ -99,12 +99,12 @@ Every time you modify a file, VFS automatically creates a new version.
 
 ```bash
 # Make some changes
-vfs write /docs/readme.txt "Version 1"
-vfs write /docs/readme.txt "Version 2"
-vfs write /docs/readme.txt "Version 3"
+avfs write /docs/readme.txt "Version 1"
+avfs write /docs/readme.txt "Version 2"
+avfs write /docs/readme.txt "Version 3"
 
 # View version history
-vfs log /docs/readme.txt
+avfs log /docs/readme.txt
 ```
 
 Output:
@@ -118,13 +118,13 @@ Version 1           - 2024-01-15 10:32:15
 
 ```bash
 # Read a specific version
-vfs cat -v 1 /docs/readme.txt
+avfs cat -v 1 /docs/readme.txt
 
 # Restore to a previous version
-vfs checkout /docs/readme.txt -v 1
+avfs checkout /docs/readme.txt -v 1
 
 # Revert to the immediately previous version
-vfs revert /docs/readme.txt
+avfs revert /docs/readme.txt
 ```
 
 ## Search
@@ -133,30 +133,30 @@ vfs revert /docs/readme.txt
 
 ```bash
 # Search all files for a term
-vfs search "hello"
+avfs search "hello"
 ```
 
 ### Regex Search (Grep)
 
 ```bash
 # Search with regex patterns
-vfs grep "TODO|FIXME" /src/
+avfs grep "TODO|FIXME" /src/
 
 # Case-insensitive search
-vfs grep -i "error" /logs/
+avfs grep -i "error" /logs/
 ```
 
 ### Find Files
 
 ```bash
 # Find by name pattern
-vfs find -n "*.txt"
+avfs find -n "*.txt"
 
 # Find by type (f=file, d=directory)
-vfs find -t f /docs/
+avfs find -t f /docs/
 
 # Find files with a specific tag
-vfs find --tag important
+avfs find --tag important
 ```
 
 ## Tags and Metadata
@@ -165,24 +165,24 @@ vfs find --tag important
 
 ```bash
 # Tag a file
-vfs tag /docs/readme.txt important
+avfs tag /docs/readme.txt important
 
 # List tags on a file
-vfs tag /docs/readme.txt --list
+avfs tag /docs/readme.txt --list
 ```
 
 ### Custom Metadata
 
 ```bash
 # Set metadata
-vfs meta /docs/readme.txt author "John Doe"
-vfs meta /docs/readme.txt status "draft"
+avfs meta /docs/readme.txt author "John Doe"
+avfs meta /docs/readme.txt status "draft"
 
 # Get metadata
-vfs meta /docs/readme.txt author
+avfs meta /docs/readme.txt author
 
 # List all metadata
-vfs meta /docs/readme.txt
+avfs meta /docs/readme.txt
 ```
 
 ## Interactive Shell
@@ -190,10 +190,10 @@ vfs meta /docs/readme.txt
 For extended sessions, use the interactive shell:
 
 ```bash
-vfs shell
+avfs shell
 ```
 
-In the shell, commands work without the `vfs` prefix:
+In the shell, commands work without the `avfs` prefix:
 
 ```
 [vault:myproject] / > ls
@@ -209,13 +209,13 @@ Hello, Virtual World!
 
 ```bash
 # Create another vault
-vfs vault create another-project
+avfs vault create another-project
 
 # Switch vaults
-vfs vault use myproject
+avfs vault use myproject
 
 # List all vaults
-vfs vault list
+avfs vault list
 ```
 
 ## JSON Output
@@ -223,8 +223,8 @@ vfs vault list
 All commands support JSON output for scripting:
 
 ```bash
-vfs ls --json /docs
-vfs cat --json /docs/readme.txt
+avfs ls --json /docs
+avfs cat --json /docs/readme.txt
 ```
 
 ## What's Next?

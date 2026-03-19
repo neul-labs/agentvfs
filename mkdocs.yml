@@ -1,7 +1,7 @@
-site_name: VFS Documentation
+site_name: AgentVFS Documentation
 site_description: Virtual Filesystem CLI backed by embedded databases
-repo_url: https://github.com/yourusername/vfs
-repo_name: vfs
+repo_url: https://github.com/yourusername/agentvfs
+repo_name: agentvfs
 
 docs_dir: documentation
 

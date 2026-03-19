@@ -1,11 +1,11 @@
-//! vfs - Virtual filesystem CLI backed by embedded databases.
+//! avfs - Virtual filesystem CLI backed by embedded databases.
 
 use clap::{Parser, Subcommand};
 
-use vfs::commands::{self, Output};
+use agentvfs::commands::{self, Output};
 
 #[derive(Parser)]
-#[command(name = "vfs")]
+#[command(name = "avfs")]
 #[command(version, about = "Virtual filesystem CLI backed by embedded databases")]
 struct Cli {
     /// Use a specific vault instead of the current one

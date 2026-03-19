@@ -1,13 +1,13 @@
 # Command Reference
 
-Complete reference for all VFS commands. All commands can be run with `vfs <command>` or directly in the interactive shell.
+Complete reference for all VFS commands. All commands can be run with `avfs <command>` or directly in the interactive shell.
 
 ## Navigation Commands
 
 ### ls - List directory contents
 
 ```bash
-vfs ls [OPTIONS] [PATH]
+avfs ls [OPTIONS] [PATH]
 ```
 
 **Options:**
@@ -23,36 +23,36 @@ vfs ls [OPTIONS] [PATH]
 **Examples:**
 
 ```bash
-vfs ls                    # List current directory
-vfs ls /docs              # List specific directory
-vfs ls -l /docs           # Detailed listing
-vfs ls -laR /             # Full recursive listing
+avfs ls                    # List current directory
+avfs ls /docs              # List specific directory
+avfs ls -l /docs           # Detailed listing
+avfs ls -laR /             # Full recursive listing
 ```
 
 ### cd - Change directory
 
 ```bash
-vfs cd [PATH]
+avfs cd [PATH]
 ```
 
 **Examples:**
 
 ```bash
-vfs cd /docs              # Change to /docs
-vfs cd ..                 # Go up one level
-vfs cd                    # Go to root (/)
+avfs cd /docs              # Change to /docs
+avfs cd ..                 # Go up one level
+avfs cd                    # Go to root (/)
 ```
 
 ### pwd - Print working directory
 
 ```bash
-vfs pwd
+avfs pwd
 ```
 
 ### tree - Display directory tree
 
 ```bash
-vfs tree [OPTIONS] [PATH]
+avfs tree [OPTIONS] [PATH]
 ```
 
 **Options:**
@@ -66,9 +66,9 @@ vfs tree [OPTIONS] [PATH]
 **Examples:**
 
 ```bash
-vfs tree                  # Tree from current directory
-vfs tree -L 2 /           # Tree with max depth 2
-vfs tree --size /docs     # Tree with file sizes
+avfs tree                  # Tree from current directory
+avfs tree -L 2 /           # Tree with max depth 2
+avfs tree --size /docs     # Tree with file sizes
 ```
 
 ---
@@ -78,7 +78,7 @@ vfs tree --size /docs     # Tree with file sizes
 ### cat - Display file contents
 
 ```bash
-vfs cat [OPTIONS] <PATH>...
+avfs cat [OPTIONS] <PATH>...
 ```
 
 **Options:**
@@ -91,16 +91,16 @@ vfs cat [OPTIONS] <PATH>...
 **Examples:**
 
 ```bash
-vfs cat /docs/readme.txt          # Show file contents
-vfs cat -n /src/main.rs           # With line numbers
-vfs cat -v 3 /docs/readme.txt     # Show version 3
-vfs cat file1.txt file2.txt       # Concatenate multiple files
+avfs cat /docs/readme.txt          # Show file contents
+avfs cat -n /src/main.rs           # With line numbers
+avfs cat -v 3 /docs/readme.txt     # Show version 3
+avfs cat file1.txt file2.txt       # Concatenate multiple files
 ```
 
 ### write - Write content to a file
 
 ```bash
-vfs write [OPTIONS] <PATH> [CONTENT]
+avfs write [OPTIONS] <PATH> [CONTENT]
 ```
 
 **Options:**
@@ -113,28 +113,28 @@ vfs write [OPTIONS] <PATH> [CONTENT]
 **Examples:**
 
 ```bash
-vfs write /docs/new.txt "Hello, World!"
-vfs write -a /docs/log.txt "New line"
-echo "piped content" | vfs write --stdin /docs/file.txt
+avfs write /docs/new.txt "Hello, World!"
+avfs write -a /docs/log.txt "New line"
+echo "piped content" | avfs write --stdin /docs/file.txt
 ```
 
 ### touch - Create empty file or update timestamp
 
 ```bash
-vfs touch <PATH>...
+avfs touch <PATH>...
 ```
 
 **Examples:**
 
 ```bash
-vfs touch /docs/newfile.txt
-vfs touch file1.txt file2.txt file3.txt
+avfs touch /docs/newfile.txt
+avfs touch file1.txt file2.txt file3.txt
 ```
 
 ### cp - Copy files or directories
 
 ```bash
-vfs cp [OPTIONS] <SOURCE>... <DEST>
+avfs cp [OPTIONS] <SOURCE>... <DEST>
 ```
 
 **Options:**
@@ -148,15 +148,15 @@ vfs cp [OPTIONS] <SOURCE>... <DEST>
 **Examples:**
 
 ```bash
-vfs cp /docs/file.txt /backup/
-vfs cp -r /docs /backup/docs
-vfs cp file1.txt file2.txt /dest/
+avfs cp /docs/file.txt /backup/
+avfs cp -r /docs /backup/docs
+avfs cp file1.txt file2.txt /dest/
 ```
 
 ### mv - Move or rename files
 
 ```bash
-vfs mv [OPTIONS] <SOURCE>... <DEST>
+avfs mv [OPTIONS] <SOURCE>... <DEST>
 ```
 
 **Options:**
@@ -169,15 +169,15 @@ vfs mv [OPTIONS] <SOURCE>... <DEST>
 **Examples:**
 
 ```bash
-vfs mv /docs/old.txt /docs/new.txt    # Rename
-vfs mv /docs/file.txt /archive/        # Move
-vfs mv file1.txt file2.txt /dest/      # Move multiple
+avfs mv /docs/old.txt /docs/new.txt    # Rename
+avfs mv /docs/file.txt /archive/        # Move
+avfs mv file1.txt file2.txt /dest/      # Move multiple
 ```
 
 ### rm - Remove files or directories
 
 ```bash
-vfs rm [OPTIONS] <PATH>...
+avfs rm [OPTIONS] <PATH>...
 ```
 
 **Options:**
@@ -191,9 +191,9 @@ vfs rm [OPTIONS] <PATH>...
 **Examples:**
 
 ```bash
-vfs rm /docs/old.txt
-vfs rm -r /temp
-vfs rm -rf /cache/*
+avfs rm /docs/old.txt
+avfs rm -r /temp
+avfs rm -rf /cache/*
 ```
 
 ---
@@ -203,7 +203,7 @@ vfs rm -rf /cache/*
 ### mkdir - Create directories
 
 ```bash
-vfs mkdir [OPTIONS] <PATH>...
+avfs mkdir [OPTIONS] <PATH>...
 ```
 
 **Options:**
@@ -215,22 +215,22 @@ vfs mkdir [OPTIONS] <PATH>...
 **Examples:**
 
 ```bash
-vfs mkdir /docs
-vfs mkdir -p /deep/nested/directory
-vfs mkdir dir1 dir2 dir3
+avfs mkdir /docs
+avfs mkdir -p /deep/nested/directory
+avfs mkdir dir1 dir2 dir3
 ```
 
 ### rmdir - Remove empty directories
 
 ```bash
-vfs rmdir <PATH>...
+avfs rmdir <PATH>...
 ```
 
 **Examples:**
 
 ```bash
-vfs rmdir /empty-dir
-vfs rmdir dir1 dir2
+avfs rmdir /empty-dir
+avfs rmdir dir1 dir2
 ```
 
 ---
@@ -240,7 +240,7 @@ vfs rmdir dir1 dir2
 ### diff - Compare files
 
 ```bash
-vfs diff [OPTIONS] <FILE1> <FILE2>
+avfs diff [OPTIONS] <FILE1> <FILE2>
 ```
 
 **Options:**
@@ -255,9 +255,9 @@ vfs diff [OPTIONS] <FILE1> <FILE2>
 **Examples:**
 
 ```bash
-vfs diff /docs/v1.txt /docs/v2.txt
-vfs diff -v 1 /docs/readme.txt          # Current vs version 1
-vfs diff --color file1.txt file2.txt
+avfs diff /docs/v1.txt /docs/v2.txt
+avfs diff -v 1 /docs/readme.txt          # Current vs version 1
+avfs diff --color file1.txt file2.txt
 ```
 
 ---
@@ -267,7 +267,7 @@ vfs diff --color file1.txt file2.txt
 ### grep - Search file contents
 
 ```bash
-vfs grep [OPTIONS] <PATTERN> [PATH]...
+avfs grep [OPTIONS] <PATTERN> [PATH]...
 ```
 
 **Options:**
@@ -287,17 +287,17 @@ vfs grep [OPTIONS] <PATTERN> [PATH]...
 **Examples:**
 
 ```bash
-vfs grep "TODO" /src/                 # Search in directory
-vfs grep -rn "function" /             # Recursive with line numbers
-vfs grep -i "error" /logs/*.log       # Case-insensitive with glob
-vfs grep -l "import" /src/**/*.rs     # Files containing pattern
-vfs grep -C 3 "bug" /src/main.rs      # With context
+avfs grep "TODO" /src/                 # Search in directory
+avfs grep -rn "function" /             # Recursive with line numbers
+avfs grep -i "error" /logs/*.log       # Case-insensitive with glob
+avfs grep -l "import" /src/**/*.rs     # Files containing pattern
+avfs grep -C 3 "bug" /src/main.rs      # With context
 ```
 
 ### search - Full-text search
 
 ```bash
-vfs search [OPTIONS] <QUERY> [PATH]
+avfs search [OPTIONS] <QUERY> [PATH]
 ```
 
 Full-text search using FTS5 (SQLite) or Tantivy (other backends).
@@ -317,17 +317,17 @@ Full-text search using FTS5 (SQLite) or Tantivy (other backends).
 **Examples:**
 
 ```bash
-vfs search "database connection"      # Search all files
-vfs search "TODO" /src/               # Search in directory
-vfs search -l "error"                 # Just filenames
-vfs search "config NOT test"          # Boolean query
-vfs search "data*"                    # Prefix matching
+avfs search "database connection"      # Search all files
+avfs search "TODO" /src/               # Search in directory
+avfs search -l "error"                 # Just filenames
+avfs search "config NOT test"          # Boolean query
+avfs search "data*"                    # Prefix matching
 ```
 
 ### find - Find files by name or attributes
 
 ```bash
-vfs find [PATH] [OPTIONS]
+avfs find [PATH] [OPTIONS]
 ```
 
 **Options:**
@@ -344,12 +344,12 @@ vfs find [PATH] [OPTIONS]
 **Examples:**
 
 ```bash
-vfs find / -name "*.txt"
-vfs find /src -type f -name "*.rs"
-vfs find / -size +1M
-vfs find / -mtime -7                  # Modified in last 7 days
-vfs find / -tag important
-vfs find / -name "*.log" -exec rm {}
+avfs find / -name "*.txt"
+avfs find /src -type f -name "*.rs"
+avfs find / -size +1M
+avfs find / -mtime -7                  # Modified in last 7 days
+avfs find / -tag important
+avfs find / -name "*.log" -exec rm {}
 ```
 
 ---
@@ -359,7 +359,7 @@ vfs find / -name "*.log" -exec rm {}
 ### vault create - Create a new vault
 
 ```bash
-vfs vault create <NAME> [OPTIONS]
+avfs vault create <NAME> [OPTIONS]
 ```
 
 **Options:**
@@ -372,15 +372,15 @@ vfs vault create <NAME> [OPTIONS]
 **Examples:**
 
 ```bash
-vfs vault create myproject
-vfs vault create backup --path /mnt/external/backup.vfs
-vfs vault create fast --backend sled
+avfs vault create myproject
+avfs vault create backup --path /mnt/external/backup.avfs
+avfs vault create fast --backend sled
 ```
 
 ### vault list - List all vaults
 
 ```bash
-vfs vault list [OPTIONS]
+avfs vault list [OPTIONS]
 ```
 
 **Options:**
@@ -392,13 +392,13 @@ vfs vault list [OPTIONS]
 ### vault use - Switch to a vault
 
 ```bash
-vfs vault use <NAME>
+avfs vault use <NAME>
 ```
 
 ### vault delete - Delete a vault
 
 ```bash
-vfs vault delete <NAME> [OPTIONS]
+avfs vault delete <NAME> [OPTIONS]
 ```
 
 **Options:**
@@ -410,7 +410,7 @@ vfs vault delete <NAME> [OPTIONS]
 ### vault info - Show vault information
 
 ```bash
-vfs vault info [NAME] [OPTIONS]
+avfs vault info [NAME] [OPTIONS]
 ```
 
 **Options:**
@@ -424,7 +424,7 @@ Shows size, file count, version count, limits, and settings.
 ### vault config - Configure vault settings
 
 ```bash
-vfs vault config [KEY] [VALUE]
+avfs vault config [KEY] [VALUE]
 ```
 
 View or modify vault settings.
@@ -432,18 +432,18 @@ View or modify vault settings.
 **Examples:**
 
 ```bash
-vfs vault config                      # Show all settings
-vfs vault config max_size_mb 100      # Set max vault size
-vfs vault config max_files 10000      # Set max file count
-vfs vault config max_file_size_mb 10  # Set max single file size
-vfs vault config prune_strategy keep_n
-vfs vault config prune_keep_count 10
+avfs vault config                      # Show all settings
+avfs vault config max_size_mb 100      # Set max vault size
+avfs vault config max_files 10000      # Set max file count
+avfs vault config max_file_size_mb 10  # Set max single file size
+avfs vault config prune_strategy keep_n
+avfs vault config prune_keep_count 10
 ```
 
 ### vault import - Register external vault
 
 ```bash
-vfs vault import <NAME> <PATH>
+avfs vault import <NAME> <PATH>
 ```
 
 Register an existing vault database file.
@@ -451,13 +451,13 @@ Register an existing vault database file.
 **Examples:**
 
 ```bash
-vfs vault import shared ~/Downloads/shared.vfs
+avfs vault import shared ~/Downloads/shared.avfs
 ```
 
 ### vault stats - Show detailed statistics
 
 ```bash
-vfs vault stats [OPTIONS]
+avfs vault stats [OPTIONS]
 ```
 
 **Options:**
@@ -471,8 +471,8 @@ vfs vault stats [OPTIONS]
 **Examples:**
 
 ```bash
-vfs vault stats                       # Storage breakdown
-vfs vault stats --versions            # Files by version count
+avfs vault stats                       # Storage breakdown
+avfs vault stats --versions            # Files by version count
 ```
 
 ---
@@ -482,7 +482,7 @@ vfs vault stats --versions            # Files by version count
 ### import - Import from real filesystem
 
 ```bash
-vfs import [OPTIONS] <REAL_PATH> <VIRTUAL_PATH>
+avfs import [OPTIONS] <REAL_PATH> <VIRTUAL_PATH>
 ```
 
 **Options:**
@@ -495,14 +495,14 @@ vfs import [OPTIONS] <REAL_PATH> <VIRTUAL_PATH>
 **Examples:**
 
 ```bash
-vfs import ~/documents/report.pdf /docs/
-vfs import -r ~/project/src /src
+avfs import ~/documents/report.pdf /docs/
+avfs import -r ~/project/src /src
 ```
 
 ### export - Export to real filesystem
 
 ```bash
-vfs export [OPTIONS] <VIRTUAL_PATH> <REAL_PATH>
+avfs export [OPTIONS] <VIRTUAL_PATH> <REAL_PATH>
 ```
 
 **Options:**
@@ -516,9 +516,9 @@ vfs export [OPTIONS] <VIRTUAL_PATH> <REAL_PATH>
 **Examples:**
 
 ```bash
-vfs export /docs/report.pdf ~/Downloads/
-vfs export -r /src ~/backup/src
-vfs export --version 5 /docs/file.txt ~/old-version.txt
+avfs export /docs/report.pdf ~/Downloads/
+avfs export -r /src ~/backup/src
+avfs export --version 5 /docs/file.txt ~/old-version.txt
 ```
 
 ---
@@ -528,7 +528,7 @@ vfs export --version 5 /docs/file.txt ~/old-version.txt
 ### log - Show version history
 
 ```bash
-vfs log [OPTIONS] <PATH>
+avfs log [OPTIONS] <PATH>
 ```
 
 **Options:**
@@ -541,27 +541,27 @@ vfs log [OPTIONS] <PATH>
 **Examples:**
 
 ```bash
-vfs log /docs/readme.txt
-vfs log -n 5 /src/main.rs
-vfs log --oneline /docs/
+avfs log /docs/readme.txt
+avfs log -n 5 /src/main.rs
+avfs log --oneline /docs/
 ```
 
 ### checkout - Restore a previous version
 
 ```bash
-vfs checkout <PATH> <VERSION>
+avfs checkout <PATH> <VERSION>
 ```
 
 **Examples:**
 
 ```bash
-vfs checkout /docs/readme.txt 3       # Restore version 3
+avfs checkout /docs/readme.txt 3       # Restore version 3
 ```
 
 ### revert - Revert to previous version
 
 ```bash
-vfs revert <PATH>
+avfs revert <PATH>
 ```
 
 Reverts to the immediately previous version (creates a new version).
@@ -573,7 +573,7 @@ Reverts to the immediately previous version (creates a new version).
 ### tag - Add tags to files
 
 ```bash
-vfs tag [OPTIONS] <PATH> <TAG>...
+avfs tag [OPTIONS] <PATH> <TAG>...
 ```
 
 **Options:**
@@ -591,24 +591,24 @@ vfs tag [OPTIONS] <PATH> <TAG>...
 **Examples:**
 
 ```bash
-vfs tag /docs/report.pdf important urgent
-vfs tag /src/*.rs code rust
-vfs tag -r /project/ work             # Recursive
-vfs tag --create important --color red
-vfs tag --list                        # List all tags
-vfs tag --copy /template.txt /new.txt
+avfs tag /docs/report.pdf important urgent
+avfs tag /src/*.rs code rust
+avfs tag -r /project/ work             # Recursive
+avfs tag --create important --color red
+avfs tag --list                        # List all tags
+avfs tag --copy /template.txt /new.txt
 ```
 
 ### untag - Remove tags from files
 
 ```bash
-vfs untag <PATH> <TAG>...
+avfs untag <PATH> <TAG>...
 ```
 
 ### meta - View or set metadata
 
 ```bash
-vfs meta [OPTIONS] <PATH> [KEY] [VALUE]
+avfs meta [OPTIONS] <PATH> [KEY] [VALUE]
 ```
 
 **Options:**
@@ -623,12 +623,12 @@ vfs meta [OPTIONS] <PATH> [KEY] [VALUE]
 **Examples:**
 
 ```bash
-vfs meta /docs/file.txt                     # Show all metadata
-vfs meta /docs/file.txt author              # Get specific key
-vfs meta /docs/file.txt author "John Doe"   # Set value
-vfs meta --unset /docs/file.txt status      # Remove key
-vfs meta --export /docs/ > metadata.json    # Export
-vfs meta --import metadata.json             # Import
+avfs meta /docs/file.txt                     # Show all metadata
+avfs meta /docs/file.txt author              # Get specific key
+avfs meta /docs/file.txt author "John Doe"   # Set value
+avfs meta --unset /docs/file.txt status      # Remove key
+avfs meta --export /docs/ > metadata.json    # Export
+avfs meta --import metadata.json             # Import
 ```
 
 ---
@@ -638,7 +638,7 @@ vfs meta --import metadata.json             # Import
 ### exec - Run external command on file
 
 ```bash
-vfs exec [OPTIONS] '<COMMAND>' <PATH>...
+avfs exec [OPTIONS] '<COMMAND>' <PATH>...
 ```
 
 Extracts file to temp, runs command, re-imports result. Supports glob patterns.
@@ -660,24 +660,24 @@ Extracts file to temp, runs command, re-imports result. Supports glob patterns.
 **Examples:**
 
 ```bash
-vfs exec 'sed -i s/foo/bar/g' /docs/file.txt
-vfs exec 'sort' /data/names.txt
-vfs exec 'jq .' /config/settings.json
-vfs exec 'gzip' '/logs/*.log'         # Glob pattern
-vfs exec --parallel 4 'process' '/data/*.csv'
+avfs exec 'sed -i s/foo/bar/g' /docs/file.txt
+avfs exec 'sort' /data/names.txt
+avfs exec 'jq .' /config/settings.json
+avfs exec 'gzip' '/logs/*.log'         # Glob pattern
+avfs exec --parallel 4 'process' '/data/*.csv'
 ```
 
 ### pipe - Pipe operations (via shell)
 
 ```bash
-vfs cat <PATH> | <command> | vfs write <PATH>
+avfs cat <PATH> | <command> | avfs write <PATH>
 ```
 
 **Examples:**
 
 ```bash
-vfs cat /data.txt | sort | uniq | vfs write /sorted.txt
-vfs cat /log.txt | grep ERROR | vfs write /errors.txt
+avfs cat /data.txt | sort | uniq | avfs write /sorted.txt
+avfs cat /log.txt | grep ERROR | avfs write /errors.txt
 ```
 
 ---
@@ -687,7 +687,7 @@ vfs cat /log.txt | grep ERROR | vfs write /errors.txt
 ### prune - Remove old versions
 
 ```bash
-vfs prune [OPTIONS]
+avfs prune [OPTIONS]
 ```
 
 **Options:**
@@ -701,7 +701,7 @@ vfs prune [OPTIONS]
 ### compact - Reclaim space
 
 ```bash
-vfs compact
+avfs compact
 ```
 
 Removes unreferenced content and optimizes storage (VACUUM for SQLite, compaction for others).
@@ -709,7 +709,7 @@ Removes unreferenced content and optimizes storage (VACUUM for SQLite, compactio
 ### gc - Garbage collection
 
 ```bash
-vfs gc [OPTIONS]
+avfs gc [OPTIONS]
 ```
 
 **Options:**
@@ -722,7 +722,7 @@ vfs gc [OPTIONS]
 ### maintain - Full maintenance routine
 
 ```bash
-vfs maintain [OPTIONS]
+avfs maintain [OPTIONS]
 ```
 
 Runs prune, gc, and compact in sequence.
@@ -740,15 +740,15 @@ Runs prune, gc, and compact in sequence.
 ### shell - Start interactive shell
 
 ```bash
-vfs shell
+avfs shell
 ```
 
-Launches REPL where commands work without `vfs` prefix.
+Launches REPL where commands work without `avfs` prefix.
 
 ### aliases - Generate shell aliases
 
 ```bash
-vfs aliases [OPTIONS]
+avfs aliases [OPTIONS]
 ```
 
 **Options:**
@@ -761,8 +761,8 @@ vfs aliases [OPTIONS]
 **Examples:**
 
 ```bash
-eval "$(vfs aliases)"                 # Activate aliases
-eval "$(vfs aliases --prefix vfs-)"   # Use vfs-ls, vfs-cp, etc.
+eval "$(avfs aliases)"                 # Activate aliases
+eval "$(avfs aliases --prefix avfs-)"   # Use avfs-ls, avfs-cp, etc.
 ```
 
 ---
@@ -772,7 +772,7 @@ eval "$(vfs aliases --prefix vfs-)"   # Use vfs-ls, vfs-cp, etc.
 ### snapshot save - Create a snapshot
 
 ```bash
-vfs snapshot save [NAME]
+avfs snapshot save [NAME]
 ```
 
 Saves the current vault state. If no name is given, an auto-generated name is used.
@@ -780,14 +780,14 @@ Saves the current vault state. If no name is given, an auto-generated name is us
 **Examples:**
 
 ```bash
-vfs snapshot save before-experiment
-vfs snapshot save                      # Auto-generated name
+avfs snapshot save before-experiment
+avfs snapshot save                      # Auto-generated name
 ```
 
 ### snapshot list - List snapshots
 
 ```bash
-vfs snapshot list [OPTIONS]
+avfs snapshot list [OPTIONS]
 ```
 
 **Options:**
@@ -799,7 +799,7 @@ vfs snapshot list [OPTIONS]
 ### snapshot restore - Restore a snapshot
 
 ```bash
-vfs snapshot restore <NAME>
+avfs snapshot restore <NAME>
 ```
 
 Restores vault to a previous snapshot. Current state is auto-saved before restore.
@@ -807,13 +807,13 @@ Restores vault to a previous snapshot. Current state is auto-saved before restor
 **Examples:**
 
 ```bash
-vfs snapshot restore before-experiment
+avfs snapshot restore before-experiment
 ```
 
 ### snapshot delete - Delete a snapshot
 
 ```bash
-vfs snapshot delete <NAME>
+avfs snapshot delete <NAME>
 ```
 
 ---
@@ -823,7 +823,7 @@ vfs snapshot delete <NAME>
 ### audit - View operation history
 
 ```bash
-vfs audit [OPTIONS]
+avfs audit [OPTIONS]
 ```
 
 **Options:**
@@ -839,16 +839,16 @@ vfs audit [OPTIONS]
 **Examples:**
 
 ```bash
-vfs audit                              # Recent operations
-vfs audit --json --limit 100           # JSON output
-vfs audit --op write --op rm           # Only write/rm operations
-vfs audit --path /docs/                # Operations in /docs
+avfs audit                              # Recent operations
+avfs audit --json --limit 100           # JSON output
+avfs audit --op write --op rm           # Only write/rm operations
+avfs audit --path /docs/                # Operations in /docs
 ```
 
 ### audit clear - Clear audit log
 
 ```bash
-vfs audit clear
+avfs audit clear
 ```
 
 ---
@@ -861,7 +861,7 @@ vfs audit clear
 ### mount - Mount vault as filesystem
 
 ```bash
-vfs mount <VAULT> <MOUNTPOINT> [OPTIONS]
+avfs mount <VAULT> <MOUNTPOINT> [OPTIONS]
 ```
 
 **Options:**
@@ -875,14 +875,14 @@ vfs mount <VAULT> <MOUNTPOINT> [OPTIONS]
 **Examples:**
 
 ```bash
-vfs mount myproject /tmp/vfs-mount --foreground
-vfs mount myproject /tmp/vfs-mount --foreground --readonly
+avfs mount myproject /tmp/avfs-mount --foreground
+avfs mount myproject /tmp/avfs-mount --foreground --readonly
 ```
 
 ### unmount - Unmount vault
 
 ```bash
-vfs unmount <MOUNTPOINT>
+avfs unmount <MOUNTPOINT>
 ```
 
 ---
@@ -896,7 +896,7 @@ These options work with all commands:
 | `--vault <NAME>` | Use specific vault |
 | `--json` | Output in JSON format (for programmatic use) |
 | `--help` | Show help for command |
-| `--version` | Show vfs version |
+| `--version` | Show avfs version |
 | `--quiet` | Suppress non-error output |
 | `--verbose` | Show detailed output |
 
@@ -908,14 +908,14 @@ When `--json` is specified, all commands output structured JSON:
 
 ```bash
 # Success
-$ vfs ls --json /docs
+$ avfs ls --json /docs
 {
   "path": "/docs",
   "entries": [...]
 }
 
 # Error
-$ vfs cat --json /nonexistent
+$ avfs cat --json /nonexistent
 {
   "error": "NotFound",
   "message": "File not found: /nonexistent"

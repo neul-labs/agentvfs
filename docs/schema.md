@@ -1,10 +1,10 @@
 # Data Model & Schema
 
-This document describes the logical data model used by vfs. The model is backend-agnostic, with specific implementations for each storage backend.
+This document describes the logical data model used by avfs. The model is backend-agnostic, with specific implementations for each storage backend.
 
 ## Logical Data Model
 
-vfs organizes data into **collections** (similar to tables or trees). Each collection stores key-value pairs with specific semantics.
+avfs organizes data into **collections** (similar to tables or trees). Each collection stores key-value pairs with specific semantics.
 
 ### Collections Overview
 

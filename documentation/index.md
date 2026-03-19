@@ -31,7 +31,7 @@ A command-line tool that implements a fully-featured virtual filesystem backed b
   Run bash commands on virtual files via exec or pipes
 
 - :material-console-line: **Interactive Shell**
-  REPL mode where you don't need to prefix commands with `vfs`
+  REPL mode where you don't need to prefix commands with `avfs`
 
 - :material-robot: **Agent-Friendly**
   JSON output, snapshots, quotas, and audit logs for AI agent integration
@@ -45,26 +45,26 @@ A command-line tool that implements a fully-featured virtual filesystem backed b
 
 ```bash
 # Create a new vault
-vfs vault create myproject
+avfs vault create myproject
 
 # Create directories and files
-vfs mkdir /docs
-vfs write /docs/readme.txt "Hello, World!"
+avfs mkdir /docs
+avfs write /docs/readme.txt "Hello, World!"
 
 # List files
-vfs ls /docs
+avfs ls /docs
 
 # Read file contents
-vfs cat /docs/readme.txt
+avfs cat /docs/readme.txt
 
 # Search for content
-vfs grep "Hello" /docs/
+avfs grep "Hello" /docs/
 
 # View version history
-vfs log /docs/readme.txt
+avfs log /docs/readme.txt
 
 # Enter interactive shell
-vfs shell
+avfs shell
 ```
 
 ## Why VFS?

@@ -1,22 +1,22 @@
 # External Command Execution
 
-vfs allows you to run external bash commands on virtual files, bridging the gap between the virtual filesystem and standard Unix tools.
+avfs allows you to run external bash commands on virtual files, bridging the gap between the virtual filesystem and standard Unix tools.
 
 ## Overview
 
 Two approaches are supported:
 
-1. **Temp Extraction** (`vfs exec`): Extract file to temp, run command, re-import
-2. **Pipe-Based** (`vfs cat | cmd | vfs write`): Stream through stdin/stdout
+1. **Temp Extraction** (`avfs exec`): Extract file to temp, run command, re-import
+2. **Pipe-Based** (`avfs cat | cmd | avfs write`): Stream through stdin/stdout
 
-## Temp Extraction: `vfs exec`
+## Temp Extraction: `avfs exec`
 
 The `exec` command temporarily extracts a file to the real filesystem, runs a command, and re-imports the result.
 
 ### Syntax
 
 ```bash
-vfs exec [OPTIONS] '<COMMAND>' <PATH>...
+avfs exec [OPTIONS] '<COMMAND>' <PATH>...
 ```
 
 ### How It Works
@@ -30,16 +30,16 @@ vfs exec [OPTIONS] '<COMMAND>' <PATH>...
 
 ```bash
 # In-place text replacement with sed
-vfs exec 'sed -i s/foo/bar/g' /docs/file.txt
+avfs exec 'sed -i s/foo/bar/g' /docs/file.txt
 
 # Format JSON with jq
-vfs exec 'jq .' /config/settings.json
+avfs exec 'jq .' /config/settings.json
 
 # Sort lines in a file
-vfs exec 'sort -o {} {}' /data/names.txt
+avfs exec 'sort -o {} {}' /data/names.txt
 
 # Convert image format (requires ImageMagick)
-vfs exec 'convert {} {}.png && mv {}.png {}' /images/photo.jpg
+avfs exec 'convert {} {}.png && mv {}.png {}' /images/photo.jpg
 ```
 
 The `{}` placeholder is replaced with the temp file path. If omitted, the temp path is appended to the command.
@@ -58,19 +58,19 @@ Execute commands on multiple files matching a pattern:
 
 ```bash
 # Format all JSON files
-vfs exec 'jq .' '/config/*.json'
+avfs exec 'jq .' '/config/*.json'
 
 # Convert all markdown to uppercase (example)
-vfs exec 'tr a-z A-Z' '/docs/**/*.md'
+avfs exec 'tr a-z A-Z' '/docs/**/*.md'
 
 # Process all log files
-vfs exec 'gzip' '/logs/*.log'
+avfs exec 'gzip' '/logs/*.log'
 ```
 
 Each matching file is processed sequentially. Use `--parallel` for concurrent execution:
 
 ```bash
-vfs exec --parallel 4 'process_file' '/data/*.csv'
+avfs exec --parallel 4 'process_file' '/data/*.csv'
 ```
 
 ### Error Handling
@@ -83,7 +83,7 @@ If a command fails (non-zero exit code):
 Use `--fail-fast` to stop on first error:
 
 ```bash
-vfs exec --fail-fast 'validate' '/src/*.rs'
+avfs exec --fail-fast 'validate' '/src/*.rs'
 ```
 
 ### Rollback
@@ -92,10 +92,10 @@ Since every modification creates a new version, you can always rollback:
 
 ```bash
 # Oops, wrong sed command!
-vfs exec 'sed -i s/good/bad/g' /docs/important.txt
+avfs exec 'sed -i s/good/bad/g' /docs/important.txt
 
 # Undo by reverting to previous version
-vfs revert /docs/important.txt
+avfs revert /docs/important.txt
 ```
 
 ## Pipe-Based Operations
@@ -105,33 +105,33 @@ For streaming data through commands, use the pipe approach with `cat` and `write
 ### Syntax
 
 ```bash
-vfs cat <PATH> | <command> | vfs write <PATH>
+avfs cat <PATH> | <command> | avfs write <PATH>
 ```
 
 ### Examples
 
 ```bash
 # Sort and deduplicate
-vfs cat /data/names.txt | sort | uniq | vfs write /data/names-sorted.txt
+avfs cat /data/names.txt | sort | uniq | avfs write /data/names-sorted.txt
 
 # Filter log lines
-vfs cat /logs/app.log | grep ERROR | vfs write /logs/errors.log
+avfs cat /logs/app.log | grep ERROR | avfs write /logs/errors.log
 
 # Transform JSON
-vfs cat /config/settings.json | jq '.debug = true' | vfs write /config/settings.json
+avfs cat /config/settings.json | jq '.debug = true' | avfs write /config/settings.json
 
 # Compress content
-vfs cat /data/large.txt | gzip | vfs write /data/large.txt.gz
+avfs cat /data/large.txt | gzip | avfs write /data/large.txt.gz
 
 # Count lines and save
-vfs cat /data/file.txt | wc -l | vfs write /stats/linecount.txt
+avfs cat /data/file.txt | wc -l | avfs write /stats/linecount.txt
 
 # Multi-stage pipeline
-vfs cat /data/raw.csv | \
+avfs cat /data/raw.csv | \
     cut -d',' -f1,3 | \
     sort -t',' -k2 | \
     head -100 | \
-    vfs write /data/processed.csv
+    avfs write /data/processed.csv
 ```
 
 ### Reading from stdin
@@ -140,13 +140,13 @@ Write external data into the virtual filesystem:
 
 ```bash
 # Pipe from real filesystem
-cat ~/real-file.txt | vfs write /imported/file.txt
+cat ~/real-file.txt | avfs write /imported/file.txt
 
 # Pipe from curl
-curl -s https://api.example.com/data | vfs write /api/response.json
+curl -s https://api.example.com/data | avfs write /api/response.json
 
 # Pipe from any command
-date | vfs write /logs/timestamp.txt
+date | avfs write /logs/timestamp.txt
 ```
 
 ### Writing to stdout
@@ -155,21 +155,21 @@ Export virtual file contents to external commands:
 
 ```bash
 # View in pager
-vfs cat /docs/readme.txt | less
+avfs cat /docs/readme.txt | less
 
 # Open in editor (read-only view)
-vfs cat /src/main.rs | vim -
+avfs cat /src/main.rs | vim -
 
 # Send to clipboard (Linux)
-vfs cat /notes/snippet.txt | xclip -selection clipboard
+avfs cat /notes/snippet.txt | xclip -selection clipboard
 
 # Print with formatting
-vfs cat /report.md | pandoc -t pdf > report.pdf
+avfs cat /report.md | pandoc -t pdf > report.pdf
 ```
 
 ## Comparison: exec vs Pipe
 
-| Feature | `vfs exec` | Pipe |
+| Feature | `avfs exec` | Pipe |
 |---------|-----------|------|
 | In-place editing | Yes | Yes (same input/output path) |
 | Multiple files | Yes (globs) | One at a time |
@@ -205,7 +205,7 @@ Commands run with:
 Enable network access for specific commands:
 
 ```bash
-vfs exec --allow-network 'curl-based-tool' /file
+avfs exec --allow-network 'curl-based-tool' /file
 ```
 
 ### Shell Injection Prevention
@@ -214,10 +214,10 @@ Commands are NOT passed through a shell by default. To use shell features:
 
 ```bash
 # This runs the command directly (safer)
-vfs exec 'my-tool --arg value' /file
+avfs exec 'my-tool --arg value' /file
 
 # This uses shell interpretation (be careful!)
-vfs exec --shell 'echo $HOME && my-tool' /file
+avfs exec --shell 'echo $HOME && my-tool' /file
 ```
 
 ### Temp Directory
@@ -234,11 +234,11 @@ Temp files are created in a secure directory:
 
 ```bash
 # Make changes and tag the version
-vfs exec 'sed -i s/dev/prod/g' /config/app.yaml
-vfs tag /config/app.yaml production-ready
+avfs exec 'sed -i s/dev/prod/g' /config/app.yaml
+avfs tag /config/app.yaml production-ready
 
 # Later, find the tagged version
-vfs log /config/app.yaml | grep production-ready
+avfs log /config/app.yaml | grep production-ready
 ```
 
 ### Batch Processing Script
@@ -247,13 +247,13 @@ vfs log /config/app.yaml | grep production-ready
 #!/bin/bash
 # process_all.sh - Process all files in a vault directory
 
-for file in $(vfs find /data -name "*.csv" -type f); do
+for file in $(avfs find /data -name "*.csv" -type f); do
     echo "Processing $file..."
-    vfs exec 'csvclean' "$file"
+    avfs exec 'csvclean' "$file"
 done
 
 echo "Done! Running compaction..."
-vfs compact
+avfs compact
 ```
 
 ### Integration with Make/Build Tools
@@ -261,11 +261,11 @@ vfs compact
 ```makefile
 # Makefile example
 build:
-	vfs exec 'cargo build --release' /src/main.rs
-	vfs export /target/release/myapp ./dist/
+	avfs exec 'cargo build --release' /src/main.rs
+	avfs export /target/release/myapp ./dist/
 
 test:
-	vfs exec 'cargo test' /src/lib.rs
+	avfs exec 'cargo test' /src/lib.rs
 ```
 
 ## Troubleshooting
@@ -275,7 +275,7 @@ test:
 Ensure the command is in your PATH or use absolute paths:
 
 ```bash
-vfs exec '/usr/local/bin/my-tool' /file
+avfs exec '/usr/local/bin/my-tool' /file
 ```
 
 ### Permission Denied
@@ -283,7 +283,7 @@ vfs exec '/usr/local/bin/my-tool' /file
 Check that the command has execute permissions:
 
 ```bash
-vfs exec 'chmod +x ./script.sh && ./script.sh' /data
+avfs exec 'chmod +x ./script.sh && ./script.sh' /data
 ```
 
 ### Timeout Issues
@@ -291,7 +291,7 @@ vfs exec 'chmod +x ./script.sh && ./script.sh' /data
 Increase the timeout for long-running commands:
 
 ```bash
-vfs exec --timeout 300 'slow-processor' /large-file
+avfs exec --timeout 300 'slow-processor' /large-file
 ```
 
 ### Debug Mode
@@ -299,5 +299,5 @@ vfs exec --timeout 300 'slow-processor' /large-file
 See exactly what's happening:
 
 ```bash
-vfs exec -v --dry-run 'my-command' '/files/*.txt'
+avfs exec -v --dry-run 'my-command' '/files/*.txt'
 ```

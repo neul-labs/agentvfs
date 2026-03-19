@@ -33,15 +33,15 @@ For FUSE mount support (Linux/macOS only):
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/vfs
-cd vfs
+git clone https://github.com/yourusername/avfs
+cd avfs
 
 # Build release version
 cargo build --release
 
-# The binary will be at target/release/vfs
+# The binary will be at target/release/avfs
 # Optionally, copy to your PATH:
-sudo cp target/release/vfs /usr/local/bin/
+sudo cp target/release/avfs /usr/local/bin/
 ```
 
 ### With FUSE Support
@@ -58,30 +58,30 @@ cargo build --release --features fuse
 Once published:
 
 ```bash
-cargo install vfs
+cargo install avfs
 
 # With FUSE support
-cargo install vfs --features fuse
+cargo install avfs --features fuse
 ```
 
 ## Verify Installation
 
 ```bash
 # Check version
-vfs --version
+avfs --version
 
 # Show help
-vfs --help
+avfs --help
 
 # Create your first vault
-vfs vault create test
-vfs vault list
+avfs vault create test
+avfs vault list
 ```
 
 Expected output:
 
 ```
-* test    ~/.vfs/test.vfs    (current)
+* test    ~/.avfs/test.avfs    (current)
 ```
 
 ## Shell Completion
@@ -92,39 +92,39 @@ VFS can generate shell completion scripts:
 
     ```bash
     # Add to ~/.bashrc
-    eval "$(vfs aliases --format bash)"
+    eval "$(avfs aliases --format bash)"
     ```
 
 === "Zsh"
 
     ```bash
     # Add to ~/.zshrc
-    eval "$(vfs aliases --format zsh)"
+    eval "$(avfs aliases --format zsh)"
     ```
 
 === "Fish"
 
     ```bash
     # Add to ~/.config/fish/config.fish
-    vfs aliases --format fish | source
+    avfs aliases --format fish | source
     ```
 
 ## Configuration
 
-VFS stores its data in `~/.vfs/` by default:
+VFS stores its data in `~/.avfs/` by default:
 
 ```
-~/.vfs/
+~/.avfs/
 ├── config.json     # Global configuration
-├── default.vfs     # Default vault database
-└── other.vfs       # Additional vaults
+├── default.avfs     # Default vault database
+└── other.avfs       # Additional vaults
 ```
 
 ### Environment Variables
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `VFS_HOME` | Base directory for VFS data | `~/.vfs` |
+| `VFS_HOME` | Base directory for VFS data | `~/.avfs` |
 | `VFS_DEFAULT_VAULT` | Default vault name | `default` |
 
 ## Troubleshooting
@@ -134,11 +134,11 @@ VFS stores its data in `~/.vfs/` by default:
 Ensure the binary is in your PATH:
 
 ```bash
-# Check if vfs is accessible
-which vfs
+# Check if avfs is accessible
+which avfs
 
 # If not found, add to PATH
-export PATH="$PATH:/path/to/vfs/target/release"
+export PATH="$PATH:/path/to/avfs/target/release"
 ```
 
 ### FUSE Mount Errors
@@ -159,11 +159,11 @@ sudo usermod -aG fuse $USER
 If you get "database is locked" errors, ensure no other VFS process is accessing the same vault:
 
 ```bash
-# List running vfs processes
-ps aux | grep vfs
+# List running avfs processes
+ps aux | grep avfs
 
 # Force unlock (use with caution)
-vfs vault info myvault
+avfs vault info myvault
 ```
 
 ## Next Steps
