@@ -1,0 +1,73 @@
+site_name: VFS Documentation
+site_description: Virtual Filesystem CLI backed by embedded databases
+repo_url: https://github.com/yourusername/vfs
+repo_name: vfs
+
+docs_dir: documentation
+
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.tabs.link
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Installation: getting-started/installation.md
+    - Quick Start: getting-started/quickstart.md
+    - Core Concepts: getting-started/concepts.md
+  - User Guide:
+    - Vault Management: user-guide/vaults.md
+    - File Operations: user-guide/file-operations.md
+    - Versioning: user-guide/versioning.md
+    - Search: user-guide/search.md
+    - Metadata & Tags: user-guide/metadata.md
+    - Import & Export: user-guide/import-export.md
+    - Interactive Shell: user-guide/shell.md
+  - Advanced:
+    - Storage Backends: advanced/storage-backends.md
+    - Maintenance: advanced/maintenance.md
+    - FUSE Mount: advanced/fuse-mount.md
+    - Agent Integration: advanced/agent-integration.md
+  - Reference:
+    - Command Reference: reference/commands.md
+    - Database Schema: reference/schema.md
+    - Architecture: reference/architecture.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - toc:
+      permalink: true
+  - tables
+  - attr_list
+  - md_in_html
+
+plugins:
+  - search
