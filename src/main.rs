@@ -1,5 +1,10 @@
 //! avfs - Virtual filesystem CLI backed by embedded databases.
 
+use mimalloc::MiMalloc;
+
+#[global_allocator]
+static GLOBAL: MiMalloc = MiMalloc;
+
 use clap::{Parser, Subcommand};
 
 use agentvfs::commands::{self, Output};

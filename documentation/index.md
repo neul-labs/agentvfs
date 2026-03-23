@@ -1,40 +1,34 @@
-# VFS - Virtual Filesystem CLI
+# agentvfs
 
-A command-line tool that implements a fully-featured virtual filesystem backed by embedded databases. Manage files, directories, and content using familiar shell commands without touching the real filesystem.
+**Sandboxed filesystem for AI agents**
+
+A database-backed virtual filesystem designed for AI agents. Create isolated workspaces, track file versions, search content, and roll back changes - all without touching the real filesystem.
+
+## What's New
+
+- :material-speedometer: **High-performance allocator** - mimalloc for faster memory operations
+- :material-cached: **Zero-copy caching** - rkyv-based cache for frequently accessed data
+- :material-desktop-classic: **Cross-platform** - Pre-built binaries for Linux, macOS, and Windows
+- :material-console-line: **Interactive shell** - REPL mode with tab completion and history
 
 ## Features
 
 <div class="grid cards" markdown>
 
+- :material-robot: **Built for AI Agents**
+  JSON output, snapshots, quotas, and audit logs for seamless integration
+
 - :material-folder-multiple: **Familiar Commands**
   Use `ls`, `cp`, `mv`, `rm`, `cat`, `mkdir`, and more
 
-- :material-database: **Pluggable Storage**
-  SQLite (default), Sled, LMDB, or RocksDB backends
-
-- :material-safe-square: **Multiple Vaults**
-  Create and switch between independent databases
-
 - :material-history: **Version History**
-  Automatic versioning on every file change with rollback support
-
-- :material-tag-multiple: **Metadata & Tags**
-  Add custom tags and metadata to any file
+  Every change tracked, instant rollback to any version
 
 - :material-magnify: **Full-Text Search**
-  Fast content search (FTS5 for SQLite, Tantivy for others)
+  Fast content search with FTS5, grep with regex support
 
-- :material-regex: **Grep Support**
-  Regex-based content searching across files
-
-- :material-console: **External Commands**
-  Run bash commands on virtual files via exec or pipes
-
-- :material-console-line: **Interactive Shell**
-  REPL mode where you don't need to prefix commands with `avfs`
-
-- :material-robot: **Agent-Friendly**
-  JSON output, snapshots, quotas, and audit logs for AI agent integration
+- :material-safe-square: **Multiple Vaults**
+  Isolated workspaces, each in its own database
 
 - :material-harddisk: **FUSE Mount**
   Mount vaults as real directories (Linux/macOS)
@@ -44,45 +38,63 @@ A command-line tool that implements a fully-featured virtual filesystem backed b
 ## Quick Example
 
 ```bash
-# Create a new vault
+# Create an isolated workspace
 avfs vault create myproject
 
-# Create directories and files
-avfs mkdir /docs
-avfs write /docs/readme.txt "Hello, World!"
+# Work with files
+avfs mkdir /src
+avfs write /src/main.py "print('hello')"
+avfs cat /src/main.py
 
-# List files
-avfs ls /docs
+# Search and navigate
+avfs grep "hello" /
+avfs tree /
 
-# Read file contents
-avfs cat /docs/readme.txt
+# Version control
+avfs log /src/main.py
+avfs checkout /src/main.py --version 1
 
-# Search for content
-avfs grep "Hello" /docs/
-
-# View version history
-avfs log /docs/readme.txt
-
-# Enter interactive shell
+# Interactive shell (no prefix needed)
 avfs shell
 ```
 
-## Why VFS?
+## For AI Agents
 
-| Use Case | Benefit |
-|----------|---------|
-| **Isolation** | Keep project files separate from your real filesystem |
-| **Portability** | A single database file contains your entire filesystem |
-| **Flexibility** | Choose the storage backend that fits your workload |
-| **Version Control** | Built-in history without needing git for simple files |
-| **Searchability** | Fast full-text search across all content |
-| **Experimentation** | Test file operations without risk to real files |
+```python
+import subprocess
+import json
+
+def avfs(*args):
+    result = subprocess.run(
+        ["avfs", "--json"] + list(args),
+        capture_output=True, text=True
+    )
+    return json.loads(result.stdout) if result.stdout else None
+
+# Checkpoint before risky operations
+avfs("snapshot", "save", "before-changes")
+
+# Work with files
+avfs("mkdir", "/workspace")
+avfs("write", "/workspace/code.py", "# Generated")
+
+# Roll back if needed
+avfs("snapshot", "restore", "before-changes")
+```
+
+## Why agentvfs?
+
+| Feature | Benefit |
+|---------|---------|
+| **Isolation** | Sandboxed filesystem - no risk to real files |
+| **Versioning** | Every change tracked, instant rollback |
+| **Searchable** | Full-text search across all content |
+| **Portable** | Single database file, easy to backup |
+| **Fast** | SQLite backend, mimalloc allocator, rkyv caching |
 
 ## Getting Started
 
-Ready to dive in? Start with these guides:
-
-- [Installation](getting-started/installation.md) - Get VFS installed on your system
+- [Installation](getting-started/installation.md) - Install avfs on your system
 - [Quick Start](getting-started/quickstart.md) - Learn the basics in 5 minutes
 - [Core Concepts](getting-started/concepts.md) - Understand vaults, versioning, and more
 
@@ -90,16 +102,13 @@ Ready to dive in? Start with these guides:
 
 | Category | Commands |
 |----------|----------|
-| **Navigation** | `ls`, `pwd`, `tree` |
-| **File Operations** | `cp`, `mv`, `rm`, `cat`, `write` |
-| **Directory Operations** | `mkdir` |
+| **Files** | `ls`, `cat`, `write`, `cp`, `mv`, `rm`, `tree` |
+| **Directories** | `mkdir`, `pwd` |
+| **Search** | `grep`, `find`, `search` |
 | **Versioning** | `log`, `checkout`, `revert`, `diff` |
-| **Search** | `search`, `grep`, `find` |
-| **Vault Management** | `vault create`, `vault list`, `vault use`, `vault delete` |
-| **Import/Export** | `import`, `export`, `exec` |
-| **Metadata** | `tag`, `untag`, `meta` |
-| **Maintenance** | `prune`, `compact`, `gc`, `maintain` |
+| **Vaults** | `vault create`, `vault list`, `vault use`, `vault delete` |
 | **Snapshots** | `snapshot save`, `snapshot restore`, `snapshot list` |
+| **Maintenance** | `stats`, `prune`, `gc`, `compact` |
 | **Shell** | `shell`, `aliases` |
 | **FUSE** | `mount`, `unmount` |
 

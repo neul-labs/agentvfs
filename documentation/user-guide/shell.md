@@ -1,6 +1,6 @@
 # Interactive Shell
 
-VFS provides an interactive shell mode where you can use commands without the `avfs` prefix.
+agentvfs provides an interactive shell mode for quick exploration and file operations without the `avfs` prefix.
 
 ## Starting the Shell
 
@@ -10,147 +10,173 @@ avfs shell
 
 This launches an interactive REPL:
 
-```bash
+```
 $ avfs shell
-avfs - Virtual Filesystem Shell
-Type 'help' for commands, 'exit' to quit.
+avfs interactive shell
+Type 'help' for available commands, 'exit' to quit.
 
-[default] / >
+myproject>
 ```
 
 ## Prompt Format
 
-The prompt shows:
-
-- **Vault name**: Current active vault
-- **Current path**: Working directory within the vault
+The prompt shows the current vault name:
 
 ```
-[vault-name] /current/path >
+vault-name>
 ```
 
 **Examples:**
 
 ```
-[default] / >
-[myproject] /src >
-[backup] /documents/2024 >
+default> ls /
+myproject> cat /src/main.py
+agent-workspace> tree /
 ```
 
-## Using Commands
-
-In shell mode, commands work without the `avfs` prefix:
+## Quick Start
 
 ```bash
-[default] / > ls
-docs/
+# Navigate and explore
+myproject> ls /
 src/
-config/
+docs/
+config.json
 
-[default] / > cd docs
+myproject> tree /src
+/src
+├── main.py
+├── utils.py
+└── tests/
+    └── test_main.py
 
-[default] /docs > cat readme.txt
-Welcome to the project!
+# Read and write files
+myproject> cat /config.json
+{"debug": true}
 
-[default] /docs > mkdir archive
+myproject> write /notes.txt "Remember to update docs"
 
-[default] /docs > cp readme.txt archive/
+# Search across files
+myproject> grep "TODO" /src
+/src/main.py:42: # TODO: Add error handling
+/src/utils.py:15: # TODO: Optimize this
 
-[default] /docs > ls archive/
-readme.txt
+myproject> search "authentication"
+/docs/api.md: User authentication is handled by...
 ```
 
 ## Available Commands
-
-All VFS commands work in the shell:
-
-### Navigation
-
-| Command | Description |
-|---------|-------------|
-| `ls [path]` | List directory contents |
-| `cd [path]` | Change directory |
-| `pwd` | Print working directory |
-| `tree [path]` | Display directory tree |
 
 ### File Operations
 
 | Command | Description |
 |---------|-------------|
+| `ls [path]` | List directory contents |
 | `cat <file>` | Display file contents |
-| `write <file> text` | Write text to file |
-| `cp <src> <dst>` | Copy files |
+| `write <file> <text>` | Write text to file |
+| `cp <src> <dst>` | Copy files or directories |
 | `mv <src> <dst>` | Move/rename files |
-| `rm <path>` | Remove files |
+| `rm <path>` | Remove files or directories |
 | `mkdir <dir>` | Create directory |
+| `tree [path]` | Display directory tree |
+| `pwd` | Print working directory (always `/`) |
 
 ### Search
 
 | Command | Description |
 |---------|-------------|
-| `grep <pat> [path]` | Search file contents |
-| `find [path] [opt]` | Find files |
-| `search <query>` | Full-text search |
+| `grep <pattern> [path]` | Search file contents with regex |
+| `find [path] [options]` | Find files by name or attributes |
+| `search <query>` | Full-text search (FTS5) |
 
 ### Versioning
 
 | Command | Description |
 |---------|-------------|
 | `log <file>` | Show version history |
-| `checkout <f> -v <v>` | Restore version |
-| `revert <file>` | Revert to previous |
-| `diff <f1> <f2>` | Compare files |
+| `checkout <file> --version <n>` | Restore specific version |
+| `revert <file>` | Revert to previous version |
+| `diff <file1> <file2>` | Compare files or versions |
 
-### Vault
-
-| Command | Description |
-|---------|-------------|
-| `vault list` | List vaults |
-| `vault use <name>` | Switch vault |
-| `vault info` | Vault information |
-
-### Shell
+### Snapshots
 
 | Command | Description |
 |---------|-------------|
-| `help` | Show help |
-| `exit` | Exit shell (or Ctrl+D) |
+| `snapshot save <name>` | Save current state |
+| `snapshot list` | List all snapshots |
+| `snapshot restore <name>` | Restore to snapshot |
+| `snapshot delete <name>` | Delete snapshot |
+
+### Vault Management
+
+| Command | Description |
+|---------|-------------|
+| `vault list` | List all vaults |
+| `vault use <name>` | Switch to vault |
+| `vault create <name>` | Create new vault |
+| `vault delete <name>` | Delete vault |
+| `vault info [name]` | Show vault information |
+
+### Import/Export
+
+| Command | Description |
+|---------|-------------|
+| `import <real-path> <vfs-path>` | Import from real filesystem |
+| `export <vfs-path> <real-path>` | Export to real filesystem |
+| `exec <command> <vfs-path>` | Run external command on file |
+
+### Maintenance
+
+| Command | Description |
+|---------|-------------|
+| `stats` | Show storage statistics |
+| `prune` | Remove old file versions |
+| `gc` | Garbage collect orphaned content |
+| `compact` | Compact database |
+| `maintain` | Run full maintenance |
+
+### Shell Built-ins
+
+| Command | Description |
+|---------|-------------|
+| `help` | Show available commands |
 | `clear` | Clear screen |
+| `exit` / `quit` | Exit shell |
 
 ## Tab Completion
 
-The shell supports tab completion for:
+The shell supports tab completion for commands and paths:
 
 ### Commands
 
 ```bash
-[default] / > gr<TAB>
+myproject> gr<TAB>
 grep
 ```
 
 ### Paths
 
 ```bash
-[default] / > cd do<TAB>
-[default] / > cd docs/
+myproject> cat /sr<TAB>
+myproject> cat /src/
 
-[default] /docs > cat re<TAB>
-[default] /docs > cat readme.txt
+myproject> cat /src/ma<TAB>
+myproject> cat /src/main.py
 ```
 
 ## Command History
 
-### Navigate History
+### Navigation
 
 - **Up Arrow**: Previous command
 - **Down Arrow**: Next command
 - **Ctrl+R**: Reverse search history
 
-### History Persistence
+### Persistence
 
 Command history is saved to `~/.avfs/history` and persists across sessions.
 
-Disable history with:
+Disable history persistence:
 
 ```bash
 avfs shell --no-history
@@ -166,13 +192,59 @@ avfs shell --no-history
 | `Ctrl+K` | Clear line after cursor |
 | `Ctrl+W` | Delete word before cursor |
 | `Ctrl+L` | Clear screen |
-| `Ctrl+C` | Cancel current command |
+| `Ctrl+C` | Cancel current input |
 | `Ctrl+D` | Exit shell (if line empty) |
 | `Tab` | Auto-complete |
 
+## AI Agent Workflows
+
+The shell is particularly useful for AI agents that need to explore and manipulate files interactively.
+
+### Checkpoint and Rollback
+
+```bash
+# Save state before risky operations
+agent-workspace> snapshot save before-refactor
+
+# Make changes
+agent-workspace> write /src/main.py "new code..."
+
+# If something goes wrong, rollback
+agent-workspace> snapshot restore before-refactor
+```
+
+### Exploring Unknown Codebases
+
+```bash
+# Get an overview
+agent-workspace> tree /
+agent-workspace> stats
+
+# Find relevant files
+agent-workspace> search "authentication"
+agent-workspace> grep "class.*Handler" /src
+
+# Read and understand
+agent-workspace> cat /src/auth.py
+agent-workspace> log /src/auth.py
+```
+
+### Batch Operations
+
+```bash
+# Import a project
+agent-workspace> import /path/to/real/project /workspace
+
+# Work on it
+agent-workspace> write /workspace/fix.patch "..."
+
+# Export results
+agent-workspace> export /workspace /path/to/output
+```
+
 ## Shell Aliases
 
-Generate aliases for your regular shell:
+Generate aliases for your regular shell to use avfs commands directly:
 
 ```bash
 $ avfs aliases
@@ -205,41 +277,39 @@ alias vwrite='avfs write'
     avfs aliases --format fish | source
     ```
 
-Then use directly from your shell:
+Then use directly:
 
 ```bash
 $ vls /docs
 $ vcat /docs/readme.txt
+$ vgrep "TODO" /src
 ```
 
 ## Tips
 
-### Quick Directory Navigation
+### JSON Output in Shell
+
+Use `--json` flag for structured output:
 
 ```bash
-# Go to root
-cd /
-
-# Go up one level
-cd ..
-
-# Go to specific path
-cd /src/components
+myproject> ls --json /src
+{"entries":[{"name":"main.py","type":"file","size":1234},...]}
 ```
 
-### Use Relative Paths
-
-In the shell, relative paths work:
+### Quick Vault Switching
 
 ```bash
-[default] /docs > cat ./readme.txt
-[default] /docs > ls ../src/
+default> vault use myproject
+myproject> vault use backup
+backup> vault use default
+default>
 ```
 
-### Switch Vaults Quickly
+### Relative Paths
+
+Relative paths work from the virtual root `/`:
 
 ```bash
-[default] / > vault use myproject
-[myproject] / > vault use default
-[default] / >
+myproject> cat ./config.json
+myproject> ls ../other-vault/   # (doesn't cross vaults)
 ```

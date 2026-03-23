@@ -1,13 +1,80 @@
 # Installation
 
-## Requirements
+## Quick Install (Recommended)
 
-- **Rust** 1.70 or later (for building from source)
+The fastest way to install agentvfs:
+
+```bash
+curl -sSfL https://raw.githubusercontent.com/neul-labs/agentvfs/main/scripts/install.sh | bash
+```
+
+This script will:
+
+1. Download the latest pre-built binary for your platform
+2. Fall back to `cargo install` if pre-built binary unavailable
+3. Fall back to building from source if cargo install fails
+
+## Pre-built Binaries
+
+Download from [GitHub Releases](https://github.com/neul-labs/agentvfs/releases):
+
+| Platform | Architecture | Download |
+|----------|--------------|----------|
+| Linux | x86_64 | `avfs-VERSION-linux-x86_64.tar.gz` |
+| Linux | ARM64 | `avfs-VERSION-linux-aarch64.tar.gz` |
+| macOS | x86_64 (Intel) | `avfs-VERSION-darwin-x86_64.tar.gz` |
+| macOS | ARM64 (Apple Silicon) | `avfs-VERSION-darwin-aarch64.tar.gz` |
+| Windows | x86_64 | `avfs-VERSION-windows-x86_64.zip` |
+
+### Manual Installation
+
+```bash
+# Download (example for Linux x86_64)
+curl -LO https://github.com/neul-labs/agentvfs/releases/latest/download/avfs-0.1.0-linux-x86_64.tar.gz
+
+# Extract
+tar -xzf avfs-0.1.0-linux-x86_64.tar.gz
+
+# Move to PATH
+sudo mv avfs /usr/local/bin/
+
+# Verify
+avfs --version
+```
+
+## From crates.io
+
+```bash
+cargo install agentvfs
+
+# With FUSE support (Linux/macOS)
+cargo install agentvfs --features fuse
+```
+
+## From Source
+
+### Requirements
+
+- **Rust** 1.70 or later
 - **Operating System**: Linux, macOS, or Windows
 
-### Optional Dependencies
+### Build
 
-For FUSE mount support (Linux/macOS only):
+```bash
+# Clone the repository
+git clone https://github.com/neul-labs/agentvfs
+cd agentvfs
+
+# Build release version
+cargo build --release
+
+# The binary will be at target/release/avfs
+sudo cp target/release/avfs /usr/local/bin/
+```
+
+### With FUSE Support
+
+FUSE allows mounting vaults as real directories. Requires FUSE libraries:
 
 === "Ubuntu/Debian"
 
@@ -27,41 +94,10 @@ For FUSE mount support (Linux/macOS only):
     brew install macfuse
     ```
 
-## Installation Methods
-
-### From Source (Recommended)
+Then build with the fuse feature:
 
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/avfs
-cd avfs
-
-# Build release version
-cargo build --release
-
-# The binary will be at target/release/avfs
-# Optionally, copy to your PATH:
-sudo cp target/release/avfs /usr/local/bin/
-```
-
-### With FUSE Support
-
-To enable FUSE mounting capabilities:
-
-```bash
-# Build with FUSE feature
 cargo build --release --features fuse
-```
-
-### From Crates.io
-
-Once published:
-
-```bash
-cargo install avfs
-
-# With FUSE support
-cargo install avfs --features fuse
 ```
 
 ## Verify Installation
@@ -86,7 +122,7 @@ Expected output:
 
 ## Shell Completion
 
-VFS can generate shell completion scripts:
+Generate aliases for your shell:
 
 === "Bash"
 
@@ -111,21 +147,22 @@ VFS can generate shell completion scripts:
 
 ## Configuration
 
-VFS stores its data in `~/.avfs/` by default:
+agentvfs stores data in `~/.avfs/` by default:
 
 ```
 ~/.avfs/
-├── config.json     # Global configuration
+├── config.json      # Global configuration
+├── history          # Shell command history
 ├── default.avfs     # Default vault database
-└── other.avfs       # Additional vaults
+└── myproject.avfs   # Additional vaults
 ```
 
 ### Environment Variables
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `VFS_HOME` | Base directory for VFS data | `~/.avfs` |
-| `VFS_DEFAULT_VAULT` | Default vault name | `default` |
+| `AVFS_HOME` | Base directory for avfs data | `~/.avfs` |
+| `AVFS_DEFAULT_VAULT` | Default vault name | `default` |
 
 ## Troubleshooting
 
@@ -138,7 +175,7 @@ Ensure the binary is in your PATH:
 which avfs
 
 # If not found, add to PATH
-export PATH="$PATH:/path/to/avfs/target/release"
+export PATH="$PATH:/usr/local/bin"
 ```
 
 ### FUSE Mount Errors
@@ -149,24 +186,25 @@ If mounting fails with permission errors:
 # Check if FUSE is available
 ls -la /dev/fuse
 
-# You may need to add your user to the fuse group
+# Add your user to the fuse group
 sudo usermod -aG fuse $USER
 # Then log out and back in
 ```
 
 ### Database Locked
 
-If you get "database is locked" errors, ensure no other VFS process is accessing the same vault:
+If you get "database is locked" errors:
 
 ```bash
-# List running avfs processes
+# Check for running avfs processes
 ps aux | grep avfs
 
-# Force unlock (use with caution)
+# View vault info
 avfs vault info myvault
 ```
 
 ## Next Steps
 
 - [Quick Start Guide](quickstart.md) - Learn the basics in 5 minutes
-- [Core Concepts](concepts.md) - Understand how VFS works
+- [Core Concepts](concepts.md) - Understand vaults, versioning, and more
+- [Shell Usage](../user-guide/shell.md) - Interactive shell features

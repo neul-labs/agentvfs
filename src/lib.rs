@@ -27,6 +27,7 @@
 //! assert_eq!(content, b"Hello, World!");
 //! ```
 
+pub mod cache;
 pub mod commands;
 pub mod error;
 pub mod fs;

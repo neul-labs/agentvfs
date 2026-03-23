@@ -1,27 +1,23 @@
-# agentvfs - Virtual Filesystem CLI
+# agentvfs
+
+**Sandboxed filesystem for AI agents**
 
 [![Crates.io](https://img.shields.io/crates/v/agentvfs.svg)](https://crates.io/crates/agentvfs)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Downloads](https://img.shields.io/crates/d/agentvfs.svg)](https://crates.io/crates/agentvfs)
 
-A command-line tool that implements a fully-featured virtual filesystem backed by embedded databases. Manage files, directories, and content using familiar shell commands without touching the real filesystem.
+A database-backed virtual filesystem designed for AI agents. Create isolated workspaces, track file versions, search content, and roll back changes - all without touching the real filesystem.
 
-## Features
+## What's New
 
-- **Familiar Commands**: Use `ls`, `cp`, `mv`, `rm`, `cat`, `mkdir`, and more
-- **Pluggable Storage**: SQLite (default), Sled, LMDB, or RocksDB backends
-- **Multiple Vaults**: Create and switch between independent databases
-- **Version History**: Automatic versioning on every file change with rollback support
-- **Metadata & Tags**: Add custom tags and metadata to any file
-- **Full-Text Search**: Fast content search (FTS5 for SQLite, Tantivy for others)
-- **Grep Support**: Regex-based content searching across files
-- **External Commands**: Run bash commands on virtual files via exec or pipes
-- **Interactive Shell**: REPL mode where you don't need to prefix commands with `avfs`
-- **Agent-Friendly**: JSON output, snapshots, quotas, and audit logs for AI agent integration
+- **High-performance allocator** - mimalloc for faster memory operations
+- **Zero-copy caching** - rkyv-based cache for frequently accessed data
+- **Cross-platform** - Pre-built binaries for Linux, macOS, and Windows
+- **Interactive shell** - REPL mode with tab completion and history
 
 ## Installation
 
-### Quick Install (Recommended)
+### Quick Install
 
 ```bash
 curl -sSfL https://raw.githubusercontent.com/neul-labs/agentvfs/main/scripts/install.sh | bash
@@ -39,195 +35,137 @@ cargo install agentvfs
 git clone https://github.com/neul-labs/agentvfs
 cd agentvfs
 cargo build --release
-./scripts/install.sh --local
 ```
 
-### With FUSE Support
+### Pre-built Binaries
 
-```bash
-cargo install agentvfs --features fuse
-```
+Download from [GitHub Releases](https://github.com/neul-labs/agentvfs/releases):
 
-### Install Options
-
-The install script supports several options:
-
-```bash
-# Install specific version
-./scripts/install.sh --version 0.1.0
-
-# Install to custom location
-./scripts/install.sh --prefix /opt/avfs
-
-# Force reinstall
-./scripts/install.sh --force
-
-# Show verbose output
-./scripts/install.sh --verbose
-```
+| Platform | Download |
+|----------|----------|
+| Linux x86_64 | `avfs-VERSION-linux-x86_64.tar.gz` |
+| Linux ARM64 | `avfs-VERSION-linux-aarch64.tar.gz` |
+| macOS x86_64 | `avfs-VERSION-darwin-x86_64.tar.gz` |
+| macOS ARM64 | `avfs-VERSION-darwin-aarch64.tar.gz` |
+| Windows x86_64 | `avfs-VERSION-windows-x86_64.zip` |
 
 ## Quick Start
 
 ```bash
-# Create a new vault
+# Create a vault (isolated workspace)
 avfs vault create myproject
 
-# Create directories and files
-avfs mkdir /docs
-avfs write /docs/readme.txt "Hello, World!"
+# Work with files
+avfs mkdir /src
+avfs write /src/main.py "print('hello')"
+avfs cat /src/main.py
 
-# List files
-avfs ls /docs
+# Search and navigate
+avfs grep "hello" /
+avfs tree /
 
-# Read file contents
-avfs cat /docs/readme.txt
+# Version control
+avfs log /src/main.py
+avfs checkout /src/main.py --version 1
 
-# Copy and move files
-avfs cp /docs/readme.txt /docs/backup.txt
-avfs mv /docs/backup.txt /archive/
-
-# Search for content
-avfs grep "Hello" /docs/
-
-# View version history
-avfs log /docs/readme.txt
-
-# Enter interactive shell (no avfs prefix needed)
+# Interactive shell
 avfs shell
 ```
 
-## Command Reference
+## Interactive Shell
+
+Launch a REPL where commands work without the `avfs` prefix:
+
+```
+$ avfs shell
+avfs interactive shell
+Type 'help' for available commands, 'exit' to quit.
+
+myproject> mkdir /docs
+myproject> write /docs/notes.txt "Meeting notes..."
+myproject> ls /docs
+notes.txt
+myproject> cat /docs/notes.txt
+Meeting notes...
+myproject> exit
+Goodbye!
+```
+
+**Shell features:**
+- Tab completion for commands and paths
+- Command history (persisted in `~/.avfs/history`)
+- All standard commands available
+- Ctrl+C to cancel, Ctrl+D to exit
+
+## Commands
 
 | Category | Commands |
 |----------|----------|
-| Navigation | `ls`, `cd`, `pwd`, `tree` |
-| File Operations | `cp`, `mv`, `rm`, `cat`, `touch`, `write` |
-| Directory Operations | `mkdir`, `rmdir` |
-| Comparison | `diff` |
-| Search | `grep`, `find` |
-| Vault Management | `vault create`, `vault list`, `vault use`, `vault delete` |
-| Import/Export | `import`, `export` |
-| Versioning | `log`, `checkout`, `revert` |
-| Metadata | `tag`, `untag`, `meta` |
-| External Commands | `exec`, `pipe` |
-| Maintenance | `prune`, `compact`, `gc` |
-| Snapshots | `snapshot save`, `snapshot restore`, `snapshot list` |
-| Audit | `audit`, `audit clear` |
-| Shell | `shell`, `aliases` |
+| **Files** | `ls`, `cat`, `write`, `cp`, `mv`, `rm`, `tree` |
+| **Directories** | `mkdir`, `pwd` |
+| **Search** | `grep`, `find`, `search` |
+| **Versioning** | `log`, `checkout`, `revert`, `diff` |
+| **Metadata** | `tag`, `untag`, `meta` |
+| **Import/Export** | `import`, `export`, `exec` |
+| **Vaults** | `vault create`, `vault list`, `vault use`, `vault delete` |
+| **Maintenance** | `stats`, `prune`, `gc`, `compact` |
+| **Snapshots** | `snapshot save`, `snapshot restore`, `snapshot list` |
 
-## Interactive Shell
+## For AI Agents
 
-Launch an interactive session where commands work without the `avfs` prefix:
-
-```bash
-$ avfs shell
-[vault:myproject] / > ls
-docs/
-archive/
-[vault:myproject] / > cd docs
-[vault:myproject] /docs > cat readme.txt
-Hello, World!
-[vault:myproject] /docs > exit
-```
-
-## Storage Backends
-
-avfs supports multiple embedded database backends:
-
-| Backend | Best For | Notes |
-|---------|----------|-------|
-| **SQLite** (default) | General use | Built-in FTS5 search, great tooling |
-| **Sled** | High write throughput | Pure Rust, modern architecture |
-| **LMDB** | Read-heavy workloads | Memory-mapped, very fast reads |
-| **RocksDB** | Large datasets | LSM-tree, good for SSDs |
-
-```bash
-# Create vault with specific backend
-avfs vault create myproject --backend sqlite
-avfs vault create logs --backend sled
-
-# Migrate between backends
-avfs vault migrate myproject --to lmdb
-```
-
-See [Storage Backends](docs/storage-backends.md) for details.
-
-## AI Agent Integration
-
-avfs is designed to work as a sandboxed filesystem for AI agents:
+agentvfs is designed for AI agent workflows:
 
 ```python
-import subprocess, json
+import subprocess
+import json
 
 def avfs(*args):
-    result = subprocess.run(["avfs", "--json"] + list(args), capture_output=True, text=True)
-    return json.loads(result.stdout)
+    result = subprocess.run(
+        ["avfs", "--json"] + list(args),
+        capture_output=True, text=True
+    )
+    return json.loads(result.stdout) if result.stdout else None
 
-# Save state before experiment
-avfs("snapshot", "save", "checkpoint")
+# Create isolated workspace
+avfs("vault", "create", "agent-workspace")
 
-# Agent does work
+# Save checkpoint before risky operations
+avfs("snapshot", "save", "before-changes")
+
+# Work with files
 avfs("mkdir", "/workspace")
-avfs("write", "/workspace/code.py", "print('hello')")
+avfs("write", "/workspace/code.py", "# Generated code")
 
-# Rollback if needed
-avfs("snapshot", "restore", "checkpoint")
+# Roll back if needed
+avfs("snapshot", "restore", "before-changes")
 ```
 
-**Key features for agents:**
-- `--json` flag on all commands for structured output
+**Agent-friendly features:**
+- `--json` flag for structured output on all commands
 - Snapshots for save/restore state
 - Quotas to prevent runaway resource usage
 - Audit logs for debugging
-
-See [Agent Integration](docs/agent-integration.md) for full documentation.
-
-## Agent Setup Script
-
-For AI agents (Claude, Codex, etc.), use the setup script to create a workspace:
-
-```bash
-# Create and mount a vault, then cd into it
-source scripts/agent-setup.sh my-workspace
-
-# Or add this function to your .bashrc:
-avfs-workspace() {
-    local name="${1:-agent-workspace}"
-    local mount="/tmp/avfs-$name"
-    avfs vault create "$name" 2>/dev/null
-    mkdir -p "$mount"
-    avfs mount "$name" "$mount"
-    cd "$mount"
-}
-```
-
-## Documentation
-
-- [Architecture Overview](docs/architecture.md)
-- [Storage Backends](docs/storage-backends.md)
-- [Data Model & Schema](docs/schema.md)
-- [Command Reference](docs/commands.md)
-- [External Commands](docs/exec.md)
-- [Vault Management](docs/vaults.md)
-- [Versioning](docs/versioning.md)
-- [Maintenance & Pruning](docs/maintenance.md)
-- [Metadata & Tags](docs/metadata.md)
-- [Search & Grep](docs/search.md)
-- [Interactive Shell](docs/shell.md)
-- [Agent Integration](docs/agent-integration.md)
+- FUSE mount for native filesystem access
 
 ## Why agentvfs?
 
-- **Isolation**: Keep project files separate from your real filesystem
-- **Portability**: A single database file contains your entire filesystem
-- **Flexibility**: Choose the storage backend that fits your workload
-- **Version Control**: Built-in history without needing git for simple files
-- **Searchability**: Fast full-text search across all content
-- **Experimentation**: Test file operations without risk to real files
+| Feature | Benefit |
+|---------|---------|
+| **Isolation** | Sandboxed filesystem - no risk to real files |
+| **Versioning** | Every change tracked, instant rollback |
+| **Searchable** | Full-text search across all content |
+| **Portable** | Single database file, easy to backup |
+| **Fast** | SQLite backend, mimalloc allocator, rkyv caching |
 
-## Roadmap
+## Documentation
 
-See [ROADMAP.md](ROADMAP.md) for implementation status and planned features.
+- [Quick Start Guide](documentation/getting-started/quickstart.md)
+- [Shell Usage](documentation/user-guide/shell.md)
+- [Vault Management](documentation/user-guide/vaults.md)
+- [Versioning](documentation/user-guide/versioning.md)
+- [Agent Integration](documentation/advanced/agent-integration.md)
+- [FUSE Mount](documentation/advanced/fuse-mount.md)
+- [Command Reference](documentation/reference/commands.md)
 
 ## License
 
