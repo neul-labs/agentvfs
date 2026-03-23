@@ -1,5 +1,9 @@
 # agentvfs - Virtual Filesystem CLI
 
+[![Crates.io](https://img.shields.io/crates/v/agentvfs.svg)](https://crates.io/crates/agentvfs)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://img.shields.io/crates/d/agentvfs.svg)](https://crates.io/crates/agentvfs)
+
 A command-line tool that implements a fully-featured virtual filesystem backed by embedded databases. Manage files, directories, and content using familiar shell commands without touching the real filesystem.
 
 ## Features
@@ -17,14 +21,49 @@ A command-line tool that implements a fully-featured virtual filesystem backed b
 
 ## Installation
 
-```bash
-# From crates.io (once published)
-cargo install agentvfs
+### Quick Install (Recommended)
 
-# From source
-git clone https://github.com/yourusername/agentvfs
+```bash
+curl -sSfL https://raw.githubusercontent.com/neul-labs/agentvfs/main/scripts/install.sh | bash
+```
+
+### From crates.io
+
+```bash
+cargo install agentvfs
+```
+
+### From Source
+
+```bash
+git clone https://github.com/neul-labs/agentvfs
 cd agentvfs
 cargo build --release
+./scripts/install.sh --local
+```
+
+### With FUSE Support
+
+```bash
+cargo install agentvfs --features fuse
+```
+
+### Install Options
+
+The install script supports several options:
+
+```bash
+# Install specific version
+./scripts/install.sh --version 0.1.0
+
+# Install to custom location
+./scripts/install.sh --prefix /opt/avfs
+
+# Force reinstall
+./scripts/install.sh --force
+
+# Show verbose output
+./scripts/install.sh --verbose
 ```
 
 ## Quick Start

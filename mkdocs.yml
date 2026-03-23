@@ -1,7 +1,7 @@
 site_name: AgentVFS Documentation
 site_description: Virtual Filesystem CLI backed by embedded databases
-repo_url: https://github.com/yourusername/agentvfs
-repo_name: agentvfs
+repo_url: https://github.com/neul-labs/agentvfs
+repo_name: neul-labs/agentvfs
 
 docs_dir: documentation
 

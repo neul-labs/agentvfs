@@ -2,9 +2,20 @@
 name = "agentvfs"
 version = "0.1.0"
 edition = "2021"
-description = "Virtual filesystem CLI backed by embedded databases"
+authors = ["Dipankar Sarkar <me@dipankar.name>"]
+description = "Virtual filesystem CLI backed by embedded databases for AI agents"
 license = "MIT"
-repository = "https://github.com/yourusername/agentvfs"
+repository = "https://github.com/neul-labs/agentvfs"
+homepage = "https://github.com/neul-labs/agentvfs"
+documentation = "https://docs.rs/agentvfs"
+readme = "README.md"
+keywords = ["filesystem", "virtual", "cli", "database", "ai-agent"]
+categories = ["command-line-utilities", "filesystem", "database"]
+exclude = [
+    "site/*",
+    ".claude/*",
+    "target/*",
+]
 
 [dependencies]
 # CLI
