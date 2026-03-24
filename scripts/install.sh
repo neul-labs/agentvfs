@@ -57,6 +57,17 @@ debug() {
     fi
 }
 
+compute_sha256() {
+    local file=$1
+    if command -v sha256sum &> /dev/null; then
+        sha256sum "$file" | awk '{print $1}'
+    elif command -v shasum &> /dev/null; then
+        shasum -a 256 "$file" | awk '{print $1}'
+    else
+        return 1
+    fi
+}
+
 # Show help
 show_help() {
     cat << EOF
@@ -200,6 +211,34 @@ install_from_release() {
     # Download
     info "Downloading ${BINARY_NAME} v${version} for ${os}-${arch}..."
     if ! curl -sSfL "$url" -o "${tmp_dir}/${filename}" 2>/dev/null; then
+        return 1
+    fi
+
+    local checksums_url="https://github.com/${REPO}/releases/download/v${version}/SHA256SUMS"
+    if ! curl -sSfL "$checksums_url" -o "${tmp_dir}/SHA256SUMS" 2>/dev/null; then
+        error "Failed to download release checksums"
+        return 1
+    fi
+
+    if ! command -v sha256sum &> /dev/null && ! command -v shasum &> /dev/null; then
+        error "sha256sum or shasum is required to verify the download"
+        return 1
+    fi
+
+    local expected actual
+    expected=$(grep "  ${filename}\$" "${tmp_dir}/SHA256SUMS" | awk '{print $1}')
+    if [ -z "$expected" ]; then
+        error "Checksum for ${filename} not found in release manifest"
+        return 1
+    fi
+
+    actual=$(compute_sha256 "${tmp_dir}/${filename}") || {
+        error "Failed to compute checksum for ${filename}"
+        return 1
+    }
+
+    if [ "$expected" != "$actual" ]; then
+        error "Checksum verification failed for ${filename}"
         return 1
     fi
 

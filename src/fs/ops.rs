@@ -52,9 +52,9 @@ impl FileSystem {
             return Err(VfsError::NotAFile(PathBuf::from(normalized)));
         }
 
-        let hash = entry.content_hash.ok_or_else(|| {
-            VfsError::Internal("file has no content hash".to_string())
-        })?;
+        let hash = entry
+            .content_hash
+            .ok_or_else(|| VfsError::Internal("file has no content hash".to_string()))?;
 
         self.backend.read_content(&hash)
     }
@@ -66,9 +66,8 @@ impl FileSystem {
     pub fn write_file(&self, vpath: &str, content: &[u8]) -> Result<()> {
         let normalized = path::normalize(vpath)?;
         let (parent_path, name) = path::split(&normalized)?;
-        let parent_path = parent_path.ok_or_else(|| {
-            VfsError::InvalidPath("cannot write to root".to_string())
-        })?;
+        let parent_path =
+            parent_path.ok_or_else(|| VfsError::InvalidPath("cannot write to root".to_string()))?;
 
         if name.is_empty() {
             return Err(VfsError::InvalidPath("cannot write to root".to_string()));
@@ -89,7 +88,8 @@ impl FileSystem {
             // File exists - create version snapshot of CURRENT state before updating
             let current = self.backend.get_entry_by_id(file_id)?;
             if let Some(current_hash) = current.content_hash {
-                self.backend.create_version(file_id, &current_hash, current.size)?;
+                self.backend
+                    .create_version(file_id, &current_hash, current.size)?;
             }
 
             // Update existing file with new content
@@ -97,17 +97,16 @@ impl FileSystem {
             file_id
         } else {
             // Create new file
-            let file_id = self.backend.create_file(parent.id, &name, &hash, size, &normalized)?;
+            let file_id = self
+                .backend
+                .create_file(parent.id, &name, &hash, size, &normalized)?;
 
             // Create initial version (version 1)
             self.backend.create_version(file_id, &hash, size)?;
             file_id
         };
 
-        // Update search index (only for text content)
-        if let Ok(text) = String::from_utf8(content.to_vec()) {
-            let _ = self.backend.index_file(file_id, &normalized, &text);
-        }
+        self.backend.sync_file_index(file_id, &normalized)?;
 
         Ok(())
     }
@@ -116,9 +115,8 @@ impl FileSystem {
     pub fn create_dir(&self, vpath: &str) -> Result<()> {
         let normalized = path::normalize(vpath)?;
         let (parent_path, name) = path::split(&normalized)?;
-        let parent_path = parent_path.ok_or_else(|| {
-            VfsError::InvalidPath("cannot create root".to_string())
-        })?;
+        let parent_path =
+            parent_path.ok_or_else(|| VfsError::InvalidPath("cannot create root".to_string()))?;
 
         if name.is_empty() {
             return Err(VfsError::InvalidPath("cannot create root".to_string()));
@@ -136,7 +134,8 @@ impl FileSystem {
         }
 
         // Create directory
-        self.backend.create_directory(parent.id, &name, &normalized)?;
+        self.backend
+            .create_directory(parent.id, &name, &normalized)?;
 
         Ok(())
     }
@@ -183,10 +182,7 @@ impl FileSystem {
             }
         }
 
-        // Remove from search index (for files)
-        if entry.is_file() {
-            let _ = self.backend.remove_from_index(entry.id);
-        }
+        self.remove_index_subtree(entry.id)?;
 
         // Delete entry (CASCADE handles children)
         self.backend.delete_entry(entry.id, &normalized)?;
@@ -211,9 +207,8 @@ impl FileSystem {
     /// Copy a single file.
     fn copy_file(&self, src_entry: &FileEntry, dst_path: &str) -> Result<()> {
         let (parent_path, mut name) = path::split(dst_path)?;
-        let mut parent_path = parent_path.ok_or_else(|| {
-            VfsError::InvalidPath("cannot copy to root".to_string())
-        })?;
+        let mut parent_path =
+            parent_path.ok_or_else(|| VfsError::InvalidPath("cannot copy to root".to_string()))?;
 
         // Check if destination is a directory
         if let Ok(dst_entry) = self.backend.get_entry_by_path(dst_path) {
@@ -232,7 +227,10 @@ impl FileSystem {
         }
 
         let new_path = path::join(&parent_path, &name)?;
-        self.backend.copy_file(src_entry, parent.id, &name, &new_path)?;
+        let file_id = self
+            .backend
+            .copy_file(src_entry, parent.id, &name, &new_path)?;
+        self.backend.sync_file_index(file_id, &new_path)?;
 
         Ok(())
     }
@@ -241,9 +239,8 @@ impl FileSystem {
     fn copy_dir(&self, src_path: &str, dst_path: &str) -> Result<()> {
         let src_entry = self.backend.get_entry_by_path(src_path)?;
         let (parent_path, mut name) = path::split(dst_path)?;
-        let mut parent_path = parent_path.ok_or_else(|| {
-            VfsError::InvalidPath("cannot copy to root".to_string())
-        })?;
+        let mut parent_path =
+            parent_path.ok_or_else(|| VfsError::InvalidPath("cannot copy to root".to_string()))?;
 
         // Check if destination is a directory
         if let Ok(dst_entry) = self.backend.get_entry_by_path(dst_path) {
@@ -264,7 +261,8 @@ impl FileSystem {
         let new_dir_path = path::join(&parent_path, &name)?;
 
         // Create new directory
-        self.backend.create_directory(parent.id, &name, &new_dir_path)?;
+        self.backend
+            .create_directory(parent.id, &name, &new_dir_path)?;
         let new_dir = self.backend.get_entry_by_path(&new_dir_path)?;
 
         // Copy children
@@ -276,7 +274,10 @@ impl FileSystem {
             if child.is_dir() {
                 self.copy_dir(&child_src_path, &child_dst_path)?;
             } else {
-                self.backend.copy_file(&child, new_dir.id, &child.name, &child_dst_path)?;
+                let file_id =
+                    self.backend
+                        .copy_file(&child, new_dir.id, &child.name, &child_dst_path)?;
+                self.backend.sync_file_index(file_id, &child_dst_path)?;
             }
         }
 
@@ -295,9 +296,8 @@ impl FileSystem {
         let src_entry = self.backend.get_entry_by_path(&src_normalized)?;
 
         let (parent_path, mut name) = path::split(&dst_normalized)?;
-        let mut parent_path = parent_path.ok_or_else(|| {
-            VfsError::InvalidPath("cannot move to root".to_string())
-        })?;
+        let mut parent_path =
+            parent_path.ok_or_else(|| VfsError::InvalidPath("cannot move to root".to_string()))?;
 
         // Check if destination is a directory (move into it)
         if let Ok(dst_entry) = self.backend.get_entry_by_path(&dst_normalized) {
@@ -316,19 +316,52 @@ impl FileSystem {
 
         // Check if destination name already exists
         if self.backend.name_exists(parent.id, &name)? {
-            return Err(VfsError::AlreadyExists(PathBuf::from(
-                path::join(&parent_path, &name)?,
-            )));
+            return Err(VfsError::AlreadyExists(PathBuf::from(path::join(
+                &parent_path,
+                &name,
+            )?)));
         }
 
         let new_path = path::join(&parent_path, &name)?;
 
         // Move entry
-        self.backend.move_entry(src_entry.id, parent.id, &name, &src_normalized, &new_path)?;
+        self.backend
+            .move_entry(src_entry.id, parent.id, &name, &src_normalized, &new_path)?;
 
         // If directory, rebuild child paths
         if src_entry.is_dir() {
             self.backend.rebuild_child_paths(src_entry.id, &new_path)?;
+        }
+
+        self.sync_index_subtree(src_entry.id, &new_path)?;
+
+        Ok(())
+    }
+
+    fn remove_index_subtree(&self, entry_id: i64) -> Result<()> {
+        let entry = self.backend.get_entry_by_id(entry_id)?;
+        if entry.is_file() {
+            self.backend.remove_from_index(entry.id)?;
+            return Ok(());
+        }
+
+        for child in self.backend.list_children(entry.id)? {
+            self.remove_index_subtree(child.id)?;
+        }
+
+        Ok(())
+    }
+
+    fn sync_index_subtree(&self, entry_id: i64, vpath: &str) -> Result<()> {
+        let entry = self.backend.get_entry_by_id(entry_id)?;
+        if entry.is_file() {
+            self.backend.sync_file_index(entry.id, vpath)?;
+            return Ok(());
+        }
+
+        for child in self.backend.list_children(entry.id)? {
+            let child_path = path::join(vpath, &child.name)?;
+            self.sync_index_subtree(child.id, &child_path)?;
         }
 
         Ok(())
@@ -424,5 +457,29 @@ impl TreeNode {
         }
 
         result
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::FileSystem;
+    use crate::storage::SqliteBackend;
+    use std::sync::Arc;
+    use tempfile::tempdir;
+
+    #[test]
+    fn binary_rewrite_removes_stale_search_results() {
+        let dir = tempdir().unwrap();
+        let db_path = dir.path().join("test.avfs");
+        let backend = Arc::new(SqliteBackend::open(&db_path).unwrap());
+        let fs = FileSystem::new(backend.clone());
+
+        fs.create_dir("/docs").unwrap();
+        fs.write_file("/docs/file.txt", b"hello world").unwrap();
+        assert_eq!(backend.search_content("hello", 10).unwrap().len(), 1);
+
+        fs.write_file("/docs/file.txt", &[0xff, 0xfe, 0xfd])
+            .unwrap();
+        assert!(backend.search_content("hello", 10).unwrap().is_empty());
     }
 }

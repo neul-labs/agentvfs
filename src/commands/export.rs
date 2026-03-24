@@ -7,7 +7,7 @@ use clap::Args;
 use serde::Serialize;
 
 use crate::commands::Output;
-use crate::error::Result;
+use crate::error::{Result, VfsError};
 use crate::fs::FileSystem;
 use crate::vault::VaultManager;
 
@@ -76,7 +76,15 @@ pub fn run(args: ExportArgs, output: &Output, vault: Option<String>) -> Result<(
             ));
         }
         // Export directory recursively
-        export_recursive(&vfs, &args.vfs_path, &real_path, 0, args.max_depth, args.overwrite, &mut stats)?;
+        export_recursive(
+            &vfs,
+            &args.vfs_path,
+            &real_path,
+            0,
+            args.max_depth,
+            args.overwrite,
+            &mut stats,
+        )?;
     }
 
     if output.is_json() {
@@ -111,17 +119,32 @@ fn export_file(
     overwrite: bool,
     stats: &mut ExportStats,
 ) -> Result<()> {
-    // Check if file already exists
-    if real_path.exists() && !overwrite {
-        return Err(crate::error::VfsError::AlreadyExists(real_path.to_path_buf()));
+    if let Some(parent) = real_path.parent() {
+        ensure_no_symlink_components(parent)?;
     }
 
-    // Ensure parent directory exists
+    match fs::symlink_metadata(real_path) {
+        Ok(metadata) => {
+            if metadata.file_type().is_symlink() {
+                return Err(VfsError::InvalidInput(format!(
+                    "refusing to export through symlink '{}'",
+                    real_path.display()
+                )));
+            }
+            if !overwrite {
+                return Err(crate::error::VfsError::AlreadyExists(
+                    real_path.to_path_buf(),
+                ));
+            }
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+        Err(e) => return Err(VfsError::Io(e)),
+    }
+
     if let Some(parent) = real_path.parent() {
         fs::create_dir_all(parent).map_err(crate::error::VfsError::Io)?;
     }
 
-    // Read from vfs and write to real fs
     let content = vfs.read_file(vfs_path)?;
     stats.total_bytes += content.len() as u64;
     fs::write(real_path, &content).map_err(crate::error::VfsError::Io)?;
@@ -139,14 +162,13 @@ fn export_recursive(
     overwrite: bool,
     stats: &mut ExportStats,
 ) -> Result<()> {
-    // Check depth limit
     if let Some(max) = max_depth {
         if depth > max {
             return Ok(());
         }
     }
 
-    // Create real directory
+    ensure_no_symlink_components(real_path)?;
     fs::create_dir_all(real_path).map_err(crate::error::VfsError::Io)?;
     stats.dirs_created += 1;
 
@@ -165,9 +187,63 @@ fn export_recursive(
         if entry.file_type.is_file() {
             export_file(vfs, &child_vfs_path, &child_real_path, overwrite, stats)?;
         } else if entry.file_type.is_dir() {
-            export_recursive(vfs, &child_vfs_path, &child_real_path, depth + 1, max_depth, overwrite, stats)?;
+            export_recursive(
+                vfs,
+                &child_vfs_path,
+                &child_real_path,
+                depth + 1,
+                max_depth,
+                overwrite,
+                stats,
+            )?;
         }
     }
 
     Ok(())
+}
+
+fn ensure_no_symlink_components(path: &Path) -> Result<()> {
+    let mut current = PathBuf::new();
+
+    for component in path.components() {
+        current.push(component);
+
+        match fs::symlink_metadata(&current) {
+            Ok(metadata) => {
+                if metadata.file_type().is_symlink() {
+                    return Err(VfsError::InvalidInput(format!(
+                        "refusing to export through symlink '{}'",
+                        current.display()
+                    )));
+                }
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(VfsError::Io(e)),
+        }
+    }
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ensure_no_symlink_components;
+    use std::fs;
+    use tempfile::tempdir;
+
+    #[test]
+    fn rejects_symlink_components() {
+        let dir = tempdir().unwrap();
+        let real_dir = dir.path().join("real");
+        let link_dir = dir.path().join("link");
+
+        fs::create_dir(&real_dir).unwrap();
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&real_dir, &link_dir).unwrap();
+        #[cfg(windows)]
+        std::os::windows::fs::symlink_dir(&real_dir, &link_dir).unwrap();
+
+        let err = ensure_no_symlink_components(&link_dir.join("out.txt")).unwrap_err();
+        assert!(err.to_string().contains("symlink"));
+    }
 }

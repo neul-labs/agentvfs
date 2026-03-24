@@ -5,26 +5,28 @@ use std::ffi::OsStr;
 use std::sync::Mutex;
 
 use fuser::{
-    Filesystem, ReplyAttr, ReplyData, ReplyDirectory, ReplyEmpty, ReplyEntry,
-    ReplyOpen, ReplyStatfs, ReplyWrite, Request,
+    Filesystem, ReplyAttr, ReplyData, ReplyDirectory, ReplyEmpty, ReplyEntry, ReplyOpen,
+    ReplyStatfs, ReplyWrite, Request,
 };
 
 use crate::error::VfsError;
 use crate::fs::FileSystem;
 
-use super::attr::{entry_to_attr, root_attr, TTL, BLOCK_SIZE};
+use super::attr::{entry_to_attr, root_attr, BLOCK_SIZE, TTL};
 
 /// Root inode number (FUSE convention).
 const ROOT_INODE: u64 = 1;
 
 /// Information about an open file.
 struct OpenFile {
-    /// The inode of the file.
-    inode: u64,
     /// Path to the file (for operations that need it).
     path: String,
     /// Whether opened for writing.
     write: bool,
+    /// Buffered file content for write handles.
+    buffer: Option<Vec<u8>>,
+    /// Whether the buffered content differs from storage.
+    dirty: bool,
 }
 
 /// VFS FUSE filesystem implementation.
@@ -103,6 +105,39 @@ impl VfsFilesystem {
         } else {
             format!("{}/{}", parent, name)
         }
+    }
+
+    fn apply_write(buffer: &mut Vec<u8>, offset: usize, data: &[u8]) {
+        if offset + data.len() > buffer.len() {
+            buffer.resize(offset + data.len(), 0);
+        }
+        buffer[offset..offset + data.len()].copy_from_slice(data);
+    }
+
+    fn persist_open_file(&self, fh: u64) -> Result<(), VfsError> {
+        let pending = {
+            let open_files = self.open_files.lock().unwrap();
+            let Some(open_file) = open_files.get(&fh) else {
+                return Ok(());
+            };
+
+            if !open_file.write || !open_file.dirty {
+                return Ok(());
+            }
+
+            let buffer = open_file.buffer.clone().unwrap_or_default();
+            let path = open_file.path.clone();
+            Some((path, buffer))
+        };
+
+        if let Some((path, buffer)) = pending {
+            self.fs.write_file(&path, &buffer)?;
+            if let Some(open_file) = self.open_files.lock().unwrap().get_mut(&fh) {
+                open_file.dirty = false;
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -211,8 +246,8 @@ impl Filesystem for VfsFilesystem {
 
         // Build entries list
         let mut entries = vec![
-            (ino, fuser::FileType::Directory, "."),
-            (parent_ino, fuser::FileType::Directory, ".."),
+            (ino, fuser::FileType::Directory, ".".to_string()),
+            (parent_ino, fuser::FileType::Directory, "..".to_string()),
         ];
 
         // List directory contents
@@ -229,12 +264,8 @@ impl Filesystem for VfsFilesystem {
                             fuser::FileType::RegularFile
                         };
 
-                        // Cache the path
                         self.cache_path(file_entry.id as u64, child_path);
-
-                        // We need to leak the name string to get a &'static str
-                        // This is a bit ugly but necessary for the FUSE API
-                        entries.push((file_entry.id as u64, kind, Box::leak(entry.name.into_boxed_str())));
+                        entries.push((file_entry.id as u64, kind, entry.name));
                     }
                 }
             }
@@ -246,7 +277,6 @@ impl Filesystem for VfsFilesystem {
 
         // Return entries starting from offset
         for (i, (ino, kind, name)) in entries.iter().enumerate().skip(offset as usize) {
-            // offset + 1 means next call should start from next entry
             if reply.add(*ino, (i + 1) as i64, *kind, name) {
                 break;
             }
@@ -283,13 +313,32 @@ impl Filesystem for VfsFilesystem {
                     return;
                 }
 
+                let truncate = (flags & libc::O_TRUNC) != 0;
+                let buffer = if is_write {
+                    if truncate {
+                        Some(Vec::new())
+                    } else {
+                        Some(match self.fs.read_file(&path) {
+                            Ok(data) => data,
+                            Err(VfsError::NotFound(_)) => Vec::new(),
+                            Err(e) => {
+                                reply.error(Self::error_to_errno(&e));
+                                return;
+                            }
+                        })
+                    }
+                } else {
+                    None
+                };
+
                 let fh = self.next_file_handle();
                 self.open_files.lock().unwrap().insert(
                     fh,
                     OpenFile {
-                        inode: ino,
                         path,
                         write: is_write,
+                        buffer,
+                        dirty: false,
                     },
                 );
 
@@ -314,22 +363,36 @@ impl Filesystem for VfsFilesystem {
         reply: ReplyData,
     ) {
         // Get path from file handle or inode
-        let path = {
+        let buffered = {
             let open_files = self.open_files.lock().unwrap();
             if let Some(of) = open_files.get(&fh) {
-                of.path.clone()
+                of.buffer.clone()
             } else {
-                match self.get_path(ino) {
-                    Some(p) => p,
-                    None => {
-                        reply.error(libc::ENOENT);
-                        return;
-                    }
-                }
+                None
             }
         };
 
-        // Read file content
+        if let Some(data) = buffered {
+            let offset = offset as usize;
+            let size = size as usize;
+
+            if offset >= data.len() {
+                reply.data(&[]);
+            } else {
+                let end = std::cmp::min(offset + size, data.len());
+                reply.data(&data[offset..end]);
+            }
+            return;
+        }
+
+        let path = match self.get_path(ino) {
+            Some(p) => p,
+            None => {
+                reply.error(libc::ENOENT);
+                return;
+            }
+        };
+
         match self.fs.read_file(&path) {
             Ok(data) => {
                 let offset = offset as usize;
@@ -352,7 +415,7 @@ impl Filesystem for VfsFilesystem {
     fn write(
         &mut self,
         _req: &Request,
-        ino: u64,
+        _ino: u64,
         fh: u64,
         offset: i64,
         data: &[u8],
@@ -366,60 +429,25 @@ impl Filesystem for VfsFilesystem {
             return;
         }
 
-        // Get path
-        let path = {
-            let open_files = self.open_files.lock().unwrap();
-            if let Some(of) = open_files.get(&fh) {
-                of.path.clone()
-            } else {
-                match self.get_path(ino) {
-                    Some(p) => p,
-                    None => {
-                        reply.error(libc::ENOENT);
-                        return;
-                    }
-                }
-            }
+        let mut open_files = self.open_files.lock().unwrap();
+        let Some(open_file) = open_files.get_mut(&fh) else {
+            reply.error(libc::ENOENT);
+            return;
         };
 
-        // For simplicity, we read the entire file, modify it, and write back
-        // This is not efficient for large files but works for our use case
-        let new_content = if offset == 0 {
-            // Writing from beginning - just use the new data
-            data.to_vec()
-        } else {
-            // Need to read existing content and merge
-            let existing = match self.fs.read_file(&path) {
-                Ok(d) => d,
-                Err(VfsError::NotFound(_)) => Vec::new(),
-                Err(e) => {
-                    reply.error(Self::error_to_errno(&e));
-                    return;
-                }
-            };
-
-            let offset = offset as usize;
-            let mut new_content = existing;
-
-            // Extend if needed
-            if offset + data.len() > new_content.len() {
-                new_content.resize(offset + data.len(), 0);
-            }
-
-            // Copy new data
-            new_content[offset..offset + data.len()].copy_from_slice(data);
-            new_content
-        };
-
-        // Write back
-        match self.fs.write_file(&path, &new_content) {
-            Ok(()) => {
-                reply.written(data.len() as u32);
-            }
-            Err(e) => {
-                reply.error(Self::error_to_errno(&e));
-            }
+        if !open_file.write {
+            reply.error(libc::EBADF);
+            return;
         }
+
+        let Some(buffer) = open_file.buffer.as_mut() else {
+            reply.error(libc::EIO);
+            return;
+        };
+
+        Self::apply_write(buffer, offset as usize, data);
+        open_file.dirty = true;
+        reply.written(data.len() as u32);
     }
 
     /// Release (close) a file.
@@ -433,6 +461,10 @@ impl Filesystem for VfsFilesystem {
         _flush: bool,
         reply: ReplyEmpty,
     ) {
+        if let Err(e) = self.persist_open_file(fh) {
+            reply.error(Self::error_to_errno(&e));
+            return;
+        }
         self.open_files.lock().unwrap().remove(&fh);
         reply.ok();
     }
@@ -485,9 +517,10 @@ impl Filesystem for VfsFilesystem {
                         self.open_files.lock().unwrap().insert(
                             fh,
                             OpenFile {
-                                inode: entry.id as u64,
                                 path: child_path,
                                 write: true,
+                                buffer: Some(Vec::new()),
+                                dirty: false,
                             },
                         );
 
@@ -579,18 +612,16 @@ impl Filesystem for VfsFilesystem {
         let child_path = Self::child_path(&parent_path, name);
 
         match self.fs.create_dir(&child_path) {
-            Ok(()) => {
-                match self.fs.get_entry(&child_path) {
-                    Ok(entry) => {
-                        let attr = entry_to_attr(&entry);
-                        self.cache_path(entry.id as u64, child_path);
-                        reply.entry(&TTL, &attr, 0);
-                    }
-                    Err(e) => {
-                        reply.error(Self::error_to_errno(&e));
-                    }
+            Ok(()) => match self.fs.get_entry(&child_path) {
+                Ok(entry) => {
+                    let attr = entry_to_attr(&entry);
+                    self.cache_path(entry.id as u64, child_path);
+                    reply.entry(&TTL, &attr, 0);
                 }
-            }
+                Err(e) => {
+                    reply.error(Self::error_to_errno(&e));
+                }
+            },
             Err(e) => {
                 reply.error(Self::error_to_errno(&e));
             }
@@ -719,14 +750,14 @@ impl Filesystem for VfsFilesystem {
                 let files = stats.files + stats.directories;
 
                 reply.statfs(
-                    blocks * 10,  // Total blocks (give 10x headroom)
-                    blocks * 9,   // Free blocks
-                    blocks * 9,   // Available blocks
+                    blocks * 10,   // Total blocks (give 10x headroom)
+                    blocks * 9,    // Free blocks
+                    blocks * 9,    // Available blocks
                     files + 10000, // Total inodes
-                    10000,        // Free inodes
-                    BLOCK_SIZE,   // Block size
-                    255,          // Max name length
-                    BLOCK_SIZE,   // Fragment size
+                    10000,         // Free inodes
+                    BLOCK_SIZE,    // Block size
+                    255,           // Max name length
+                    BLOCK_SIZE,    // Fragment size
                 );
             }
             Err(_) => {
@@ -737,24 +768,26 @@ impl Filesystem for VfsFilesystem {
                     900000,  // bavail
                     100000,  // files
                     90000,   // ffree
-                    BLOCK_SIZE,
-                    255,
-                    BLOCK_SIZE,
+                    BLOCK_SIZE, 255, BLOCK_SIZE,
                 );
             }
         }
     }
 
     /// Flush file data.
-    fn flush(&mut self, _req: &Request, _ino: u64, _fh: u64, _lock_owner: u64, reply: ReplyEmpty) {
-        // SQLite handles its own syncing, so this is a no-op
-        reply.ok();
+    fn flush(&mut self, _req: &Request, _ino: u64, fh: u64, _lock_owner: u64, reply: ReplyEmpty) {
+        match self.persist_open_file(fh) {
+            Ok(()) => reply.ok(),
+            Err(e) => reply.error(Self::error_to_errno(&e)),
+        }
     }
 
     /// Sync file data.
-    fn fsync(&mut self, _req: &Request, _ino: u64, _fh: u64, _datasync: bool, reply: ReplyEmpty) {
-        // SQLite handles its own syncing
-        reply.ok();
+    fn fsync(&mut self, _req: &Request, _ino: u64, fh: u64, _datasync: bool, reply: ReplyEmpty) {
+        match self.persist_open_file(fh) {
+            Ok(()) => reply.ok(),
+            Err(e) => reply.error(Self::error_to_errno(&e)),
+        }
     }
 
     /// Open a directory.
@@ -800,7 +833,7 @@ impl Filesystem for VfsFilesystem {
         _atime: Option<fuser::TimeOrNow>,
         _mtime: Option<fuser::TimeOrNow>,
         _ctime: Option<std::time::SystemTime>,
-        _fh: Option<u64>,
+        fh: Option<u64>,
         _crtime: Option<std::time::SystemTime>,
         _chgtime: Option<std::time::SystemTime>,
         _bkuptime: Option<std::time::SystemTime>,
@@ -822,30 +855,44 @@ impl Filesystem for VfsFilesystem {
 
         // Handle truncate
         if let Some(new_size) = size {
-            // Read existing content
-            let content = match self.fs.read_file(&path) {
-                Ok(c) => c,
-                Err(VfsError::NotFound(_)) => Vec::new(),
-                Err(e) => {
+            if let Some(fh) = fh {
+                let mut open_files = self.open_files.lock().unwrap();
+                if let Some(open_file) = open_files.get_mut(&fh) {
+                    if let Some(buffer) = open_file.buffer.as_mut() {
+                        buffer.resize(new_size as usize, 0);
+                        open_file.dirty = true;
+                    } else {
+                        reply.error(libc::EBADF);
+                        return;
+                    }
+                } else {
+                    reply.error(libc::ENOENT);
+                    return;
+                }
+            } else {
+                let content = match self.fs.read_file(&path) {
+                    Ok(c) => c,
+                    Err(VfsError::NotFound(_)) => Vec::new(),
+                    Err(e) => {
+                        reply.error(Self::error_to_errno(&e));
+                        return;
+                    }
+                };
+
+                let new_content = if new_size == 0 {
+                    Vec::new()
+                } else if new_size as usize <= content.len() {
+                    content[..new_size as usize].to_vec()
+                } else {
+                    let mut new = content;
+                    new.resize(new_size as usize, 0);
+                    new
+                };
+
+                if let Err(e) = self.fs.write_file(&path, &new_content) {
                     reply.error(Self::error_to_errno(&e));
                     return;
                 }
-            };
-
-            // Truncate or extend
-            let new_content = if new_size == 0 {
-                Vec::new()
-            } else if new_size as usize <= content.len() {
-                content[..new_size as usize].to_vec()
-            } else {
-                let mut new = content;
-                new.resize(new_size as usize, 0);
-                new
-            };
-
-            if let Err(e) = self.fs.write_file(&path, &new_content) {
-                reply.error(Self::error_to_errno(&e));
-                return;
             }
         }
 

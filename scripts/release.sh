@@ -162,6 +162,10 @@ check_requirements() {
         missing+=("zip")
     fi
 
+    if ! command -v sha256sum &> /dev/null && ! command -v shasum &> /dev/null; then
+        missing+=("sha256sum or shasum")
+    fi
+
     if [[ ${#missing[@]} -gt 0 ]]; then
         print_error "Missing required tools:"
         for tool in "${missing[@]}"; do
@@ -171,6 +175,15 @@ check_requirements() {
     fi
 
     print_success "All required tools available"
+}
+
+compute_sha256() {
+    local file=$1
+    if command -v sha256sum &> /dev/null; then
+        sha256sum "$file" | awk '{print $1}'
+    else
+        shasum -a 256 "$file" | awk '{print $1}'
+    fi
 }
 
 # Get target info by short name
@@ -224,7 +237,7 @@ package_target() {
 
     mkdir -p "$artifact_dir"
 
-    print_info "Packaging $artifact_name.$ext..."
+    print_info "Packaging $artifact_name.$ext..." >&2
 
     # Create temp directory for packaging
     local pkg_dir
@@ -253,8 +266,24 @@ package_target() {
 
     rm -rf "$pkg_dir"
 
-    print_success "Created $artifact_path"
+    print_success "Created $artifact_path" >&2
     echo "$artifact_path"
+}
+
+generate_checksums() {
+    local artifact_dir="target/release-artifacts"
+    local checksums_path="${artifact_dir}/SHA256SUMS"
+    shift 0
+
+    : > "$checksums_path"
+    for artifact in "$@"; do
+        local checksum
+        checksum=$(compute_sha256 "$artifact")
+        printf "%s  %s\n" "$checksum" "$(basename "$artifact")" >> "$checksums_path"
+    done
+
+    print_success "Created $checksums_path" >&2
+    echo "$checksums_path"
 }
 
 # Create GitHub release
@@ -381,6 +410,10 @@ main() {
     for artifact in "${artifacts[@]}"; do
         echo "  - $artifact"
     done
+
+    local checksum_file
+    checksum_file=$(generate_checksums "${artifacts[@]}")
+    artifacts+=("$checksum_file")
 
     # Release phase
     if [[ "$DRY_RUN" == "true" ]]; then

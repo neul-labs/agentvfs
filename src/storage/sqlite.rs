@@ -287,11 +287,9 @@ impl SqliteBackend {
         let conn = self.conn.lock().unwrap();
 
         let file_id: i64 = conn
-            .query_row(
-                "SELECT file_id FROM paths WHERE path = ?",
-                [path],
-                |row| row.get(0),
-            )
+            .query_row("SELECT file_id FROM paths WHERE path = ?", [path], |row| {
+                row.get(0)
+            })
             .optional()?
             .ok_or_else(|| VfsError::NotFound(PathBuf::from(path)))?;
 
@@ -315,7 +313,8 @@ impl SqliteBackend {
                     parent_id: row.get(1)?,
                     name: row.get(2)?,
                     file_type: FileType::from_i64(row.get(3)?).unwrap_or(FileType::File),
-                    content_hash: row.get::<_, Option<Vec<u8>>>(4)?
+                    content_hash: row
+                        .get::<_, Option<Vec<u8>>>(4)?
                         .and_then(|v| v.try_into().ok()),
                     size: row.get::<_, i64>(5)? as u64,
                     created_at: chrono::DateTime::from_timestamp(row.get(6)?, 0)
@@ -349,7 +348,8 @@ impl SqliteBackend {
                     parent_id: row.get(1)?,
                     name: row.get(2)?,
                     file_type: FileType::from_i64(row.get(3)?).unwrap_or(FileType::File),
-                    content_hash: row.get::<_, Option<Vec<u8>>>(4)?
+                    content_hash: row
+                        .get::<_, Option<Vec<u8>>>(4)?
                         .and_then(|v| v.try_into().ok()),
                     size: row.get::<_, i64>(5)? as u64,
                     created_at: chrono::DateTime::from_timestamp(row.get(6)?, 0)
@@ -567,8 +567,9 @@ impl SqliteBackend {
     pub fn rebuild_child_paths(&self, parent_id: i64, parent_path: &str) -> Result<()> {
         let children = self.list_children(parent_id)?;
         let conn = self.conn.lock().unwrap();
+        let mut directories = Vec::new();
 
-        for child in children {
+        for child in &children {
             let child_path = if parent_path == "/" {
                 format!("/{}", child.name)
             } else {
@@ -581,10 +582,14 @@ impl SqliteBackend {
             )?;
 
             if child.is_dir() {
-                drop(conn);
-                self.rebuild_child_paths(child.id, &child_path)?;
-                return Ok(());
+                directories.push((child.id, child_path));
             }
+        }
+
+        drop(conn);
+
+        for (child_id, child_path) in directories {
+            self.rebuild_child_paths(child_id, &child_path)?;
         }
 
         Ok(())
@@ -603,7 +608,13 @@ impl SqliteBackend {
     }
 
     /// Copy file entry (shares content).
-    pub fn copy_file(&self, src: &FileEntry, new_parent_id: i64, new_name: &str, new_path: &str) -> Result<i64> {
+    pub fn copy_file(
+        &self,
+        src: &FileEntry,
+        new_parent_id: i64,
+        new_name: &str,
+        new_path: &str,
+    ) -> Result<i64> {
         let conn = self.conn.lock().unwrap();
         let now = Utc::now().timestamp();
 
@@ -645,11 +656,9 @@ impl SqliteBackend {
     pub fn get_setting(&self, key: &str) -> Result<Option<String>> {
         let conn = self.conn.lock().unwrap();
 
-        conn.query_row(
-            "SELECT value FROM settings WHERE key = ?",
-            [key],
-            |row| row.get(0),
-        )
+        conn.query_row("SELECT value FROM settings WHERE key = ?", [key], |row| {
+            row.get(0)
+        })
         .optional()
         .map_err(|e| e.into())
     }
@@ -657,27 +666,27 @@ impl SqliteBackend {
     // ==================== Version Operations ====================
 
     /// Create a version snapshot of the current file state.
-    pub fn create_version(
-        &self,
-        file_id: i64,
-        content_hash: &[u8; 32],
-        size: u64,
-    ) -> Result<u64> {
+    pub fn create_version(&self, file_id: i64, content_hash: &[u8; 32], size: u64) -> Result<u64> {
         let conn = self.conn.lock().unwrap();
         let now = Utc::now().timestamp();
 
         // Get next version number
-        let next_version: u64 = conn
-            .query_row(
-                "SELECT COALESCE(MAX(version_number), 0) + 1 FROM file_versions WHERE file_id = ?",
-                [file_id],
-                |row| row.get(0),
-            )?;
+        let next_version: u64 = conn.query_row(
+            "SELECT COALESCE(MAX(version_number), 0) + 1 FROM file_versions WHERE file_id = ?",
+            [file_id],
+            |row| row.get(0),
+        )?;
 
         conn.execute(
             "INSERT INTO file_versions (file_id, version_number, content_hash, size, created_at)
              VALUES (?, ?, ?, ?, ?)",
-            params![file_id, next_version as i64, content_hash.as_slice(), size as i64, now],
+            params![
+                file_id,
+                next_version as i64,
+                content_hash.as_slice(),
+                size as i64,
+                now
+            ],
         )?;
 
         Ok(next_version)
@@ -698,9 +707,7 @@ impl SqliteBackend {
                     id: row.get(0)?,
                     file_id: row.get(1)?,
                     version_number: row.get::<_, i64>(2)? as u64,
-                    content_hash: row.get::<_, Vec<u8>>(3)?
-                        .try_into()
-                        .unwrap_or([0u8; 32]),
+                    content_hash: row.get::<_, Vec<u8>>(3)?.try_into().unwrap_or([0u8; 32]),
                     size: row.get::<_, i64>(4)? as u64,
                     created_at: chrono::DateTime::from_timestamp(row.get(5)?, 0)
                         .unwrap_or_else(Utc::now),
@@ -724,9 +731,7 @@ impl SqliteBackend {
                     id: row.get(0)?,
                     file_id: row.get(1)?,
                     version_number: row.get::<_, i64>(2)? as u64,
-                    content_hash: row.get::<_, Vec<u8>>(3)?
-                        .try_into()
-                        .unwrap_or([0u8; 32]),
+                    content_hash: row.get::<_, Vec<u8>>(3)?.try_into().unwrap_or([0u8; 32]),
                     size: row.get::<_, i64>(4)? as u64,
                     created_at: chrono::DateTime::from_timestamp(row.get(5)?, 0)
                         .unwrap_or_else(Utc::now),
@@ -751,12 +756,11 @@ impl SqliteBackend {
     pub fn get_latest_version_number(&self, file_id: i64) -> Result<u64> {
         let conn = self.conn.lock().unwrap();
 
-        let version: i64 = conn
-            .query_row(
-                "SELECT COALESCE(MAX(version_number), 0) FROM file_versions WHERE file_id = ?",
-                [file_id],
-                |row| row.get(0),
-            )?;
+        let version: i64 = conn.query_row(
+            "SELECT COALESCE(MAX(version_number), 0) FROM file_versions WHERE file_id = ?",
+            [file_id],
+            |row| row.get(0),
+        )?;
 
         Ok(version as u64)
     }
@@ -768,10 +772,7 @@ impl SqliteBackend {
         let conn = self.conn.lock().unwrap();
 
         // Delete existing index entry if any
-        conn.execute(
-            "DELETE FROM fts_content WHERE rowid = ?",
-            [file_id],
-        )?;
+        conn.execute("DELETE FROM fts_content WHERE rowid = ?", [file_id])?;
 
         // Insert new index entry
         conn.execute(
@@ -786,16 +787,46 @@ impl SqliteBackend {
     pub fn remove_from_index(&self, file_id: i64) -> Result<()> {
         let conn = self.conn.lock().unwrap();
 
-        conn.execute(
-            "DELETE FROM fts_content WHERE rowid = ?",
-            [file_id],
-        )?;
+        conn.execute("DELETE FROM fts_content WHERE rowid = ?", [file_id])?;
+
+        Ok(())
+    }
+
+    /// Rebuild a single file's search index entry from stored content.
+    pub fn sync_file_index(&self, file_id: i64, path: &str) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+
+        conn.execute("DELETE FROM fts_content WHERE rowid = ?", [file_id])?;
+
+        let data: Option<Vec<u8>> = conn
+            .query_row(
+                "SELECT c.data
+                 FROM files f
+                 JOIN contents c ON c.hash = f.content_hash
+                 WHERE f.id = ? AND f.file_type = 0",
+                [file_id],
+                |row| row.get(0),
+            )
+            .optional()?;
+
+        if let Some(data) = data {
+            if let Ok(content) = String::from_utf8(data) {
+                conn.execute(
+                    "INSERT INTO fts_content (rowid, path, content) VALUES (?, ?, ?)",
+                    params![file_id, path, content],
+                )?;
+            }
+        }
 
         Ok(())
     }
 
     /// Search content using FTS5.
-    pub fn search_content(&self, query: &str, limit: usize) -> Result<Vec<crate::fs::SearchResult>> {
+    pub fn search_content(
+        &self,
+        query: &str,
+        limit: usize,
+    ) -> Result<Vec<crate::fs::SearchResult>> {
         let conn = self.conn.lock().unwrap();
 
         let mut stmt = conn.prepare(
@@ -834,18 +865,16 @@ impl SqliteBackend {
              FROM files f
              JOIN paths p ON p.file_id = f.id
              JOIN contents c ON c.hash = f.content_hash
-             WHERE f.file_type = 0",  // Files only
+             WHERE f.file_type = 0", // Files only
         )?;
 
-        let files: Vec<(i64, String, Vec<u8>)> = stmt
-            .query_map([], |row| {
-                Ok((row.get(0)?, row.get(1)?, row.get(2)?))
-            })?
-            .collect::<std::result::Result<Vec<_>, _>>()?;
-
         let mut indexed = 0u64;
-        for (file_id, path, data) in files {
-            // Try to convert to UTF-8 text for indexing
+        let mut rows = stmt.query([])?;
+        while let Some(row) = rows.next()? {
+            let file_id: i64 = row.get(0)?;
+            let path: String = row.get(1)?;
+            let data: Vec<u8> = row.get(2)?;
+
             if let Ok(content) = String::from_utf8(data) {
                 conn.execute(
                     "INSERT INTO fts_content (rowid, path, content) VALUES (?, ?, ?)",
@@ -898,9 +927,7 @@ impl SqliteBackend {
     pub fn list_tags(&self) -> Result<Vec<crate::fs::Tag>> {
         let conn = self.conn.lock().unwrap();
 
-        let mut stmt = conn.prepare(
-            "SELECT id, name, created_at FROM tags ORDER BY name",
-        )?;
+        let mut stmt = conn.prepare("SELECT id, name, created_at FROM tags ORDER BY name")?;
 
         let tags = stmt
             .query_map([], |row| {
@@ -991,9 +1018,7 @@ impl SqliteBackend {
     pub fn get_files_with_tag(&self, tag_id: i64) -> Result<Vec<i64>> {
         let conn = self.conn.lock().unwrap();
 
-        let mut stmt = conn.prepare(
-            "SELECT file_id FROM file_tags WHERE tag_id = ?",
-        )?;
+        let mut stmt = conn.prepare("SELECT file_id FROM file_tags WHERE tag_id = ?")?;
 
         let file_ids = stmt
             .query_map([tag_id], |row| row.get(0))?
@@ -1079,9 +1104,8 @@ impl SqliteBackend {
     pub fn get_files_with_metadata(&self, key: &str, value: &str) -> Result<Vec<i64>> {
         let conn = self.conn.lock().unwrap();
 
-        let mut stmt = conn.prepare(
-            "SELECT file_id FROM file_metadata WHERE key = ? AND value = ?",
-        )?;
+        let mut stmt =
+            conn.prepare("SELECT file_id FROM file_metadata WHERE key = ? AND value = ?")?;
 
         let file_ids = stmt
             .query_map(params![key, value], |row| row.get(0))?
@@ -1111,11 +1135,8 @@ impl SqliteBackend {
         )?;
 
         // Count total versions
-        let total_versions: u64 = conn.query_row(
-            "SELECT COUNT(*) FROM file_versions",
-            [],
-            |row| row.get(0),
-        )?;
+        let total_versions: u64 =
+            conn.query_row("SELECT COUNT(*) FROM file_versions", [], |row| row.get(0))?;
 
         // Count content blobs and total size
         let (content_blobs, total_size_bytes): (u64, u64) = conn.query_row(
@@ -1165,7 +1186,11 @@ impl SqliteBackend {
         }
 
         // Delete versions not in the keep list
-        let placeholders = versions_to_keep.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+        let placeholders = versions_to_keep
+            .iter()
+            .map(|_| "?")
+            .collect::<Vec<_>>()
+            .join(",");
         let sql = format!(
             "DELETE FROM file_versions WHERE file_id = ? AND version_number NOT IN ({})",
             placeholders
@@ -1198,13 +1223,15 @@ impl SqliteBackend {
     }
 
     /// Prune all files in vault.
-    pub fn prune_all_versions(&self, keep: Option<u64>, older_than: Option<i64>) -> Result<PruneStats> {
+    pub fn prune_all_versions(
+        &self,
+        keep: Option<u64>,
+        older_than: Option<i64>,
+    ) -> Result<PruneStats> {
         let conn = self.conn.lock().unwrap();
 
         // Get all file IDs with versions
-        let mut stmt = conn.prepare(
-            "SELECT DISTINCT file_id FROM file_versions",
-        )?;
+        let mut stmt = conn.prepare("SELECT DISTINCT file_id FROM file_versions")?;
 
         let file_ids: Vec<i64> = stmt
             .query_map([], |row| row.get(0))?
@@ -1293,9 +1320,7 @@ impl SqliteBackend {
     pub fn find_orphaned_blobs(&self) -> Result<Vec<OrphanedBlob>> {
         let conn = self.conn.lock().unwrap();
 
-        let mut stmt = conn.prepare(
-            "SELECT hash, size FROM contents WHERE ref_count = 0",
-        )?;
+        let mut stmt = conn.prepare("SELECT hash, size FROM contents WHERE ref_count = 0")?;
 
         let orphans = stmt
             .query_map([], |row| {
@@ -1319,10 +1344,7 @@ impl SqliteBackend {
 
         let conn = self.conn.lock().unwrap();
 
-        let deleted = conn.execute(
-            "DELETE FROM contents WHERE ref_count = 0",
-            [],
-        )?;
+        let deleted = conn.execute("DELETE FROM contents WHERE ref_count = 0", [])?;
 
         Ok(GcStats {
             orphans_found,
@@ -1372,9 +1394,7 @@ impl SqliteBackend {
     pub fn get_all_file_ids(&self) -> Result<Vec<i64>> {
         let conn = self.conn.lock().unwrap();
 
-        let mut stmt = conn.prepare(
-            "SELECT id FROM files WHERE file_type = 0",
-        )?;
+        let mut stmt = conn.prepare("SELECT id FROM files WHERE file_type = 0")?;
 
         let ids = stmt
             .query_map([], |row| row.get(0))?
@@ -1412,10 +1432,7 @@ impl SqliteBackend {
         let conn = self.conn.lock().unwrap();
         let setting_key = format!("quota_{}", key);
 
-        conn.execute(
-            "DELETE FROM settings WHERE key = ?",
-            [setting_key],
-        )?;
+        conn.execute("DELETE FROM settings WHERE key = ?", [setting_key])?;
 
         Ok(())
     }
@@ -1508,11 +1525,7 @@ impl SqliteBackend {
 
         // Check for auto-rotation
         let max_entries = self.get_audit_max_entries_locked(&conn)?;
-        let count: u64 = conn.query_row(
-            "SELECT COUNT(*) FROM audit_log",
-            [],
-            |row| row.get(0),
-        )?;
+        let count: u64 = conn.query_row("SELECT COUNT(*) FROM audit_log", [], |row| row.get(0))?;
 
         if count > max_entries {
             // Delete oldest 10%
@@ -1554,16 +1567,17 @@ impl SqliteBackend {
                  LIMIT ?",
             )?;
 
-            let entries = stmt.query_map(params![ts, limit as i64], |row| {
-                Ok(AuditEntry {
-                    id: row.get(0)?,
-                    timestamp: row.get(1)?,
-                    operation: row.get(2)?,
-                    path: row.get(3)?,
-                    details: row.get(4)?,
-                })
-            })?
-            .collect::<std::result::Result<Vec<_>, _>>()?;
+            let entries = stmt
+                .query_map(params![ts, limit as i64], |row| {
+                    Ok(AuditEntry {
+                        id: row.get(0)?,
+                        timestamp: row.get(1)?,
+                        operation: row.get(2)?,
+                        path: row.get(3)?,
+                        details: row.get(4)?,
+                    })
+                })?
+                .collect::<std::result::Result<Vec<_>, _>>()?;
 
             Ok(entries)
         } else {
@@ -1574,16 +1588,17 @@ impl SqliteBackend {
                  LIMIT ?",
             )?;
 
-            let entries = stmt.query_map([limit as i64], |row| {
-                Ok(AuditEntry {
-                    id: row.get(0)?,
-                    timestamp: row.get(1)?,
-                    operation: row.get(2)?,
-                    path: row.get(3)?,
-                    details: row.get(4)?,
-                })
-            })?
-            .collect::<std::result::Result<Vec<_>, _>>()?;
+            let entries = stmt
+                .query_map([limit as i64], |row| {
+                    Ok(AuditEntry {
+                        id: row.get(0)?,
+                        timestamp: row.get(1)?,
+                        operation: row.get(2)?,
+                        path: row.get(3)?,
+                        details: row.get(4)?,
+                    })
+                })?
+                .collect::<std::result::Result<Vec<_>, _>>()?;
 
             Ok(entries)
         }
@@ -1594,10 +1609,7 @@ impl SqliteBackend {
         let conn = self.conn.lock().unwrap();
 
         let deleted = if let Some(ts) = before {
-            conn.execute(
-                "DELETE FROM audit_log WHERE timestamp < ?",
-                [ts],
-            )?
+            conn.execute("DELETE FROM audit_log WHERE timestamp < ?", [ts])?
         } else {
             conn.execute("DELETE FROM audit_log", [])?
         };
@@ -1609,11 +1621,7 @@ impl SqliteBackend {
     pub fn get_audit_count(&self) -> Result<u64> {
         let conn = self.conn.lock().unwrap();
 
-        let count: u64 = conn.query_row(
-            "SELECT COUNT(*) FROM audit_log",
-            [],
-            |row| row.get(0),
-        )?;
+        let count: u64 = conn.query_row("SELECT COUNT(*) FROM audit_log", [], |row| row.get(0))?;
 
         Ok(count)
     }
@@ -1751,6 +1759,7 @@ impl SqliteBackend {
 
         let mut files_restored = 0u64;
         let mut dirs_restored = 0u64;
+        let mut files_to_index = Vec::new();
 
         // Sort by path depth (directories first, then files)
         let mut sorted_files = files.clone();
@@ -1769,7 +1778,7 @@ impl SqliteBackend {
             let parent_path = if path_parts.len() <= 1 {
                 "/".to_string()
             } else {
-                format!("/{}", path_parts[..path_parts.len()-1].join("/"))
+                format!("/{}", path_parts[..path_parts.len() - 1].join("/"))
             };
 
             // Get parent ID
@@ -1796,9 +1805,16 @@ impl SqliteBackend {
 
             if file_type == 0 {
                 files_restored += 1;
+                files_to_index.push((file_id, path));
             } else {
                 dirs_restored += 1;
             }
+        }
+
+        drop(conn);
+
+        for (file_id, path) in files_to_index {
+            self.sync_file_index(file_id, &path)?;
         }
 
         Ok(RestoreStats {
@@ -1811,13 +1827,13 @@ impl SqliteBackend {
     pub fn delete_snapshot(&self, name: &str) -> Result<()> {
         let conn = self.conn.lock().unwrap();
 
-        let deleted = conn.execute(
-            "DELETE FROM snapshots WHERE name = ?",
-            [name],
-        )?;
+        let deleted = conn.execute("DELETE FROM snapshots WHERE name = ?", [name])?;
 
         if deleted == 0 {
-            return Err(VfsError::NotFound(PathBuf::from(format!("snapshot: {}", name))));
+            return Err(VfsError::NotFound(PathBuf::from(format!(
+                "snapshot: {}",
+                name
+            ))));
         }
 
         Ok(())
@@ -1936,15 +1952,12 @@ impl StorageBackend for SqliteBackend {
                 .optional()
                 .map_err(|e| e.into())
             }
-            "contents" => {
-                conn.query_row(
-                    "SELECT data FROM contents WHERE hash = ?",
-                    [key],
-                    |row| row.get(0),
-                )
+            "contents" => conn
+                .query_row("SELECT data FROM contents WHERE hash = ?", [key], |row| {
+                    row.get(0)
+                })
                 .optional()
-                .map_err(|e| e.into())
-            }
+                .map_err(|e| e.into()),
             "settings" => {
                 let key_str = String::from_utf8_lossy(key);
                 conn.query_row(
@@ -1971,9 +1984,11 @@ impl StorageBackend for SqliteBackend {
         match collection {
             "paths" => {
                 let key_str = String::from_utf8_lossy(key);
-                let file_id = i64::from_be_bytes(value.try_into().map_err(|_| {
-                    VfsError::Internal("invalid value format".to_string())
-                })?);
+                let file_id = i64::from_be_bytes(
+                    value
+                        .try_into()
+                        .map_err(|_| VfsError::Internal("invalid value format".to_string()))?,
+                );
                 conn.execute(
                     "INSERT OR REPLACE INTO paths (path, file_id) VALUES (?, ?)",
                     params![key_str.as_ref(), file_id],
@@ -2021,9 +2036,10 @@ impl StorageBackend for SqliteBackend {
                 conn.execute("DELETE FROM contents WHERE hash = ?", [key])?;
             }
             "files" => {
-                let id = i64::from_be_bytes(key.try_into().map_err(|_| {
-                    VfsError::Internal("invalid key format".to_string())
-                })?);
+                let id = i64::from_be_bytes(
+                    key.try_into()
+                        .map_err(|_| VfsError::Internal("invalid key format".to_string()))?,
+                );
                 conn.execute("DELETE FROM files WHERE id = ?", [id])?;
             }
             _ => {
@@ -2113,8 +2129,7 @@ impl StorageBackend for SqliteBackend {
             "paths" => {
                 let prefix_str = String::from_utf8_lossy(prefix);
                 let pattern = format!("{}%", prefix_str);
-                let mut stmt =
-                    conn.prepare("SELECT path, file_id FROM paths WHERE path LIKE ?")?;
+                let mut stmt = conn.prepare("SELECT path, file_id FROM paths WHERE path LIKE ?")?;
                 let rows = stmt.query_map([&pattern], |row| {
                     let path: String = row.get(0)?;
                     let file_id: i64 = row.get(1)?;
