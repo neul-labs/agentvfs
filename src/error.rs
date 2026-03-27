@@ -53,9 +53,24 @@ pub enum VfsError {
     #[error("quota exceeded: {0}")]
     QuotaExceeded(String),
 
-    /// Storage backend error.
-    #[error("storage error: {0}")]
+    /// SQLite storage backend error.
+    #[error("sqlite error: {0}")]
     Storage(#[from] rusqlite::Error),
+
+    /// Sled storage backend error.
+    #[cfg(feature = "sled-backend")]
+    #[error("sled error: {0}")]
+    Sled(#[from] sled::Error),
+
+    /// LMDB storage backend error.
+    #[cfg(feature = "lmdb-backend")]
+    #[error("lmdb error: {0}")]
+    Lmdb(#[from] heed::Error),
+
+    /// Tantivy search error.
+    #[cfg(any(feature = "sled-backend", feature = "lmdb-backend"))]
+    #[error("tantivy error: {0}")]
+    Tantivy(#[from] tantivy::TantivyError),
 
     /// IO error.
     #[error("io error: {0}")]
@@ -97,6 +112,12 @@ impl VfsError {
             VfsError::Io(e) => ("IoError", e.to_string(), None),
             VfsError::Json(e) => ("JsonError", e.to_string(), None),
             VfsError::Internal(s) => ("InternalError", s.clone(), None),
+            #[cfg(feature = "sled-backend")]
+            VfsError::Sled(e) => ("SledError", e.to_string(), None),
+            #[cfg(feature = "lmdb-backend")]
+            VfsError::Lmdb(e) => ("LmdbError", e.to_string(), None),
+            #[cfg(any(feature = "sled-backend", feature = "lmdb-backend"))]
+            VfsError::Tantivy(e) => ("TantivyError", e.to_string(), None),
         };
 
         let mut json = serde_json::json!({

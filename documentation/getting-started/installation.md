@@ -5,7 +5,14 @@
 The fastest way to install agentvfs:
 
 ```bash
-curl -sSfL https://raw.githubusercontent.com/neul-labs/agentvfs/main/scripts/install.sh | bash
+curl -sSfL https://raw.githubusercontent.com/neul-labs/agentvfs/main/install.sh | bash
+```
+
+### Install with Features
+
+```bash
+# Install with optional features
+curl -sSfL https://raw.githubusercontent.com/neul-labs/agentvfs/main/install.sh | bash -s -- --cargo --features "sled-backend,lmdb-backend"
 ```
 
 This script will:
@@ -47,9 +54,23 @@ avfs --version
 ```bash
 cargo install agentvfs
 
+# With optional backends
+cargo install agentvfs --features "sled-backend,lmdb-backend"
+
 # With FUSE support (Linux/macOS)
 cargo install agentvfs --features fuse
+
+# With all features
+cargo install agentvfs --features "sled-backend,lmdb-backend,fuse"
 ```
+
+### Available Features
+
+| Feature | Description |
+|---------|-------------|
+| `sled-backend` | Sled storage backend with Tantivy search |
+| `lmdb-backend` | LMDB storage backend with Tantivy search |
+| `fuse` | FUSE filesystem mounting support |
 
 ## From Source
 

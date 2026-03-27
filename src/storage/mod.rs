@@ -5,10 +5,89 @@
 
 mod sqlite;
 
+#[cfg(feature = "sled-backend")]
+mod sled;
+
+#[cfg(feature = "lmdb-backend")]
+mod lmdb;
+
 pub use sqlite::{
     AuditEntry, GcStats, OrphanedBlob, PruneStats, QuotaCheck, QuotaSettings,
     RestoreStats, SnapshotInfo, SqliteBackend, VaultStats,
 };
+
+#[cfg(feature = "sled-backend")]
+pub use self::sled::SledBackend;
+
+#[cfg(feature = "lmdb-backend")]
+pub use self::lmdb::LmdbBackend;
+
+use std::fmt;
+use std::str::FromStr;
+
+/// Storage backend type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum BackendType {
+    /// SQLite backend (default)
+    #[default]
+    Sqlite,
+    /// Sled backend (requires sled-backend feature)
+    #[cfg(feature = "sled-backend")]
+    Sled,
+    /// LMDB backend (requires lmdb-backend feature)
+    #[cfg(feature = "lmdb-backend")]
+    Lmdb,
+}
+
+impl BackendType {
+    /// Get all available backend types.
+    pub fn available() -> Vec<BackendType> {
+        let mut backends = vec![BackendType::Sqlite];
+        #[cfg(feature = "sled-backend")]
+        backends.push(BackendType::Sled);
+        #[cfg(feature = "lmdb-backend")]
+        backends.push(BackendType::Lmdb);
+        backends
+    }
+
+    /// Get the file extension for this backend.
+    pub fn extension(&self) -> &'static str {
+        match self {
+            BackendType::Sqlite => "avfs",
+            #[cfg(feature = "sled-backend")]
+            BackendType::Sled => "sled",
+            #[cfg(feature = "lmdb-backend")]
+            BackendType::Lmdb => "lmdb",
+        }
+    }
+}
+
+impl fmt::Display for BackendType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            BackendType::Sqlite => write!(f, "sqlite"),
+            #[cfg(feature = "sled-backend")]
+            BackendType::Sled => write!(f, "sled"),
+            #[cfg(feature = "lmdb-backend")]
+            BackendType::Lmdb => write!(f, "lmdb"),
+        }
+    }
+}
+
+impl FromStr for BackendType {
+    type Err = String;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "sqlite" => Ok(BackendType::Sqlite),
+            #[cfg(feature = "sled-backend")]
+            "sled" => Ok(BackendType::Sled),
+            #[cfg(feature = "lmdb-backend")]
+            "lmdb" => Ok(BackendType::Lmdb),
+            _ => Err(format!("unknown backend: {}", s)),
+        }
+    }
+}
 
 use crate::error::Result;
 

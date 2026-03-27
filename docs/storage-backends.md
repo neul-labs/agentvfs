@@ -12,15 +12,21 @@ The storage backend abstraction provides:
 
 ## Available Backends
 
-All vault files use the `.avfs` extension regardless of backend. The backend type is stored in vault metadata.
+Each backend uses a different file extension:
+
+| Backend | Extension | Storage Type | Feature Flag |
+|---------|-----------|--------------|--------------|
+| SQLite (default) | `.avfs` | Single file | Always available |
+| Sled | `.sled` | Directory | `sled-backend` |
+| LMDB | `.lmdb` | Directory | `lmdb-backend` |
+| RocksDB | `.rocksdb` | Directory | `rocksdb-backend` (planned) |
 
 | Backend | Best For | Trade-offs |
 |---------|----------|------------|
 | SQLite (default) | General use, queries | Larger files, slower writes |
-| Sled | High write throughput | No SQL, newer |
-| LMDB | Read-heavy, memory-mapped | Fixed map size |
-| RocksDB | Large datasets, LSM | More dependencies |
-| In-Memory | Testing | No persistence |
+| Sled | High write throughput | No SQL, requires tantivy |
+| LMDB | Read-heavy, memory-mapped | Fixed map size, requires tantivy |
+| RocksDB | Large datasets, LSM | More dependencies (planned) |
 
 ### SQLite (Default)
 

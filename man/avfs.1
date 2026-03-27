@@ -1,0 +1,265 @@
+.TH AVFS 1 "March 2026" "avfs 0.1.0" "User Commands"
+.SH NAME
+avfs \- virtual filesystem CLI backed by embedded databases for AI agents
+.SH SYNOPSIS
+.B avfs
+[\fIOPTIONS\fR] \fICOMMAND\fR [\fIARGS\fR]
+.SH DESCRIPTION
+.B avfs
+(AgentVFS) is a command-line virtual filesystem that stores files in embedded
+databases. It provides automatic versioning, full-text search, tagging,
+metadata management, and snapshot capabilities. Designed for AI agent sandboxes
+and development workflows.
+.PP
+All files are stored in a vault (database), allowing isolation between projects
+or agents. Multiple storage backends are supported including SQLite, Sled, and LMDB.
+.SH OPTIONS
+.TP
+.B \-\-vault \fINAME\fR
+Use a specific vault instead of the current one.
+.TP
+.B \-\-json
+Output results in JSON format for programmatic parsing.
+.TP
+.B \-h, \-\-help
+Print help information.
+.TP
+.B \-V, \-\-version
+Print version information.
+.SH COMMANDS
+.SS Vault Management
+.TP
+.B vault create \fINAME\fR [\-\-backend \fITYPE\fR]
+Create a new vault. Backend types: sqlite (default), sled, lmdb.
+.TP
+.B vault list
+List all available vaults.
+.TP
+.B vault use \fINAME\fR
+Switch to a different vault.
+.TP
+.B vault delete \fINAME\fR
+Delete a vault and all its contents.
+.TP
+.B vault info [\fINAME\fR]
+Show vault information including size, file count, and creation date.
+.SS File Operations
+.TP
+.B ls [\fIPATH\fR] [\-l] [\-a]
+List directory contents. Use \-l for long format, \-a for all files.
+.TP
+.B cat \fIFILE\fR [\-v \fIN\fR]
+Read file contents. Use \-v to read a specific version.
+.TP
+.B write \fIFILE\fR \fICONTENT\fR
+Write content to a file. Creates the file if it doesn't exist.
+.TP
+.B mkdir \fIDIR\fR [\-p]
+Create a directory. Use \-p to create parent directories.
+.TP
+.B rm \fIPATH\fR [\-r] [\-f]
+Remove files or directories. Use \-r for recursive deletion.
+.TP
+.B cp \fISOURCE\fR \fIDEST\fR [\-r]
+Copy files or directories.
+.TP
+.B mv \fISOURCE\fR \fIDEST\fR
+Move or rename files or directories.
+.TP
+.B tree [\fIPATH\fR]
+Display directory structure as a tree.
+.TP
+.B pwd
+Print current working directory (always /).
+.SS Versioning
+.TP
+.B log \fIFILE\fR
+Show version history for a file.
+.TP
+.B checkout \fIFILE\fR \fIVERSION\fR
+Restore a file to a specific version number.
+.TP
+.B revert \fIFILE\fR
+Revert a file to its previous version.
+.TP
+.B diff \fIFILE1\fR \fIFILE2\fR
+Compare two files or two versions of the same file.
+.SS Search
+.TP
+.B search \fIQUERY\fR [\-\-limit \fIN\fR]
+Full-text search across all file contents.
+.TP
+.B grep \fIPATTERN\fR [\fIPATH\fR]
+Search file contents using regex patterns.
+.TP
+.B find [\fIPATH\fR] [\-\-name \fIPATTERN\fR] [\-\-tag \fITAG\fR] [\-\-meta \fIKEY=VALUE\fR]
+Find files by name pattern, tag, or metadata.
+.SS Tags and Metadata
+.TP
+.B tag \fIFILE\fR \fITAG\fR
+Add a tag to a file.
+.TP
+.B tag \-\-list
+List all available tags.
+.TP
+.B tag \-\-create \fITAG\fR
+Create a new tag.
+.TP
+.B tag \-\-delete \fITAG\fR
+Delete a tag.
+.TP
+.B untag \fIFILE\fR \fITAG\fR
+Remove a tag from a file.
+.TP
+.B meta \fIFILE\fR
+Show all metadata for a file.
+.TP
+.B meta \fIFILE\fR \fIKEY\fR
+Get a specific metadata value.
+.TP
+.B meta \fIFILE\fR \fIKEY\fR \fIVALUE\fR
+Set a metadata value.
+.SS Import/Export
+.TP
+.B import \fISOURCE\fR [\fIDEST\fR] [\-r]
+Import files from the real filesystem into the vault.
+.TP
+.B export \fISOURCE\fR \fIDEST\fR [\-r]
+Export files from the vault to the real filesystem.
+.SS External Commands
+.TP
+.B exec \fICOMMAND\fR [\fIFILES...\fR]
+Run an external command on virtual files. Files are extracted to temp files,
+the command runs, and changes are imported back.
+.SS Maintenance
+.TP
+.B stats
+Show vault storage statistics including file counts, sizes, and version info.
+.TP
+.B prune [\-\-keep \fIN\fR] [\-\-older\-than \fIDAYS\fR]
+Remove old file versions to reclaim space.
+.TP
+.B gc
+Run garbage collection to remove orphaned content blobs.
+.TP
+.B compact
+Compact the database to reclaim unused space.
+.TP
+.B maintain
+Run full maintenance routine (prune, gc, compact).
+.SS Quotas
+.TP
+.B quota
+Show current quota settings and usage.
+.TP
+.B quota set \fIKEY\fR \fIVALUE\fR
+Set a quota (max_size_mb, max_files, max_file_size_mb).
+.TP
+.B quota clear \fIKEY\fR
+Clear a quota setting.
+.SS Audit Log
+.TP
+.B audit [\-\-limit \fIN\fR] [\-\-since \fIDATE\fR] [\-\-operation \fIOP\fR]
+View the audit log of vault operations.
+.TP
+.B audit clear [\-\-before \fIDATE\fR]
+Clear audit log entries.
+.SS Snapshots
+.TP
+.B snapshot save \fINAME\fR [\-\-description \fIDESC\fR]
+Save a snapshot of the current vault state.
+.TP
+.B snapshot list
+List all snapshots.
+.TP
+.B snapshot restore \fINAME\fR
+Restore the vault to a previous snapshot.
+.TP
+.B snapshot delete \fINAME\fR
+Delete a snapshot.
+.SS Interactive Shell
+.TP
+.B shell
+Launch an interactive shell with command history and tab completion.
+.TP
+.B aliases
+Generate shell aliases for avfs commands.
+.SH STORAGE BACKENDS
+.TP
+.B sqlite
+Default backend. Single-file database with WAL mode. File extension: .avfs
+.TP
+.B sled
+Embedded key-value store with lock-free reads. Uses Tantivy for full-text
+search. Directory-based storage. File extension: .sled
+.TP
+.B lmdb
+Lightning Memory-Mapped Database. Fast reads via memory mapping. Uses Tantivy
+for full-text search. Directory-based storage. File extension: .lmdb
+.SH EXAMPLES
+.TP
+Create a new vault and add files:
+.nf
+avfs vault create myproject
+avfs write /README.md "# My Project"
+avfs mkdir /src
+avfs write /src/main.rs "fn main() {}"
+.fi
+.TP
+Search and navigate:
+.nf
+avfs search "main"
+avfs tree
+avfs cat /src/main.rs
+.fi
+.TP
+Version management:
+.nf
+avfs write /config.yaml "version: 1"
+avfs write /config.yaml "version: 2"
+avfs log /config.yaml
+avfs checkout /config.yaml 1
+.fi
+.TP
+Import from real filesystem:
+.nf
+avfs import ~/projects/mycode /code -r
+avfs tree /code
+.fi
+.TP
+JSON output for scripting:
+.nf
+avfs ls / --json | jq '.files[].name'
+.fi
+.SH ENVIRONMENT
+.TP
+.B HOME
+Used to locate the configuration directory (~/.avfs).
+.SH FILES
+.TP
+.I ~/.avfs/
+Configuration and vault storage directory.
+.TP
+.I ~/.avfs/current
+Contains the name of the currently active vault.
+.TP
+.I ~/.avfs/vaults/
+Directory containing all vault database files.
+.SH EXIT STATUS
+.TP
+.B 0
+Successful completion.
+.TP
+.B 1
+An error occurred.
+.SH AUTHORS
+Dipankar Sarkar <me@dipankar.name>
+.SH REPORTING BUGS
+Report bugs at: https://github.com/neul-labs/agentvfs/issues
+.SH COPYRIGHT
+Copyright (c) 2024 Dipankar Sarkar. Licensed under MIT.
+.SH SEE ALSO
+.BR sqlite3 (1),
+.BR git (1)
+.PP
+Full documentation: https://github.com/neul-labs/agentvfs

@@ -20,7 +20,7 @@ A database-backed virtual filesystem designed for AI agents. Create isolated wor
 ### Quick Install
 
 ```bash
-curl -sSfL https://raw.githubusercontent.com/neul-labs/agentvfs/main/scripts/install.sh | bash
+curl -sSfL https://raw.githubusercontent.com/neul-labs/agentvfs/main/install.sh | bash
 ```
 
 ### From crates.io
@@ -147,6 +147,26 @@ avfs("snapshot", "restore", "before-changes")
 - Audit logs for debugging
 - FUSE mount for native filesystem access
 
+## Storage Backends
+
+agentvfs supports multiple storage backends:
+
+| Backend | Feature Flag | Best For |
+|---------|--------------|----------|
+| **SQLite** (default) | Always available | General use, queries |
+| **Sled** | `sled-backend` | High write throughput |
+| **LMDB** | `lmdb-backend` | Read-heavy, memory-mapped |
+
+```bash
+# Install with optional backends
+cargo install agentvfs --features "sled-backend,lmdb-backend"
+
+# Create vault with specific backend
+avfs vault create myproject --backend lmdb
+```
+
+See [Storage Backends](documentation/advanced/storage-backends.md) for details.
+
 ## Why agentvfs?
 
 | Feature | Benefit |
@@ -155,7 +175,7 @@ avfs("snapshot", "restore", "before-changes")
 | **Versioning** | Every change tracked, instant rollback |
 | **Searchable** | Full-text search across all content |
 | **Portable** | Single database file, easy to backup |
-| **Fast** | SQLite backend, mimalloc allocator, rkyv caching |
+| **Fast** | Multiple backends, mimalloc allocator, rkyv caching |
 
 ## Documentation
 

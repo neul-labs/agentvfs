@@ -5,7 +5,11 @@ use std::sync::Arc;
 use chrono::{DateTime, TimeZone, Utc};
 
 use crate::error::{Result, VfsError};
-use crate::storage::SqliteBackend;
+use crate::storage::{BackendType, SqliteBackend};
+#[cfg(feature = "sled-backend")]
+use crate::storage::SledBackend;
+#[cfg(feature = "lmdb-backend")]
+use crate::storage::LmdbBackend;
 use crate::vault::Config;
 
 /// Information about a vault.
@@ -19,6 +23,8 @@ pub struct VaultInfo {
     pub size: u64,
     /// Creation timestamp.
     pub created_at: Option<DateTime<Utc>>,
+    /// Storage backend type.
+    pub backend: BackendType,
 }
 
 /// Vault manager for CRUD operations on vaults.
@@ -39,17 +45,30 @@ impl VaultManager {
         Self { config }
     }
 
-    /// Create a new vault.
-    pub fn create(&self, name: &str) -> Result<()> {
+    /// Create a new vault with specified backend.
+    pub fn create_with_backend(&self, name: &str, backend: BackendType) -> Result<()> {
         validate_vault_name(name)?;
 
         if self.config.vault_exists(name) {
             return Err(VfsError::VaultExists(name.to_string()));
         }
 
-        // Create the database (schema is initialized in SqliteBackend::open)
-        let path = self.config.vault_path(name);
-        let _backend = SqliteBackend::open(&path)?;
+        let path = self.config.vault_path_with_backend(name, backend);
+
+        // Create the database based on backend type
+        match backend {
+            BackendType::Sqlite => {
+                let _backend = SqliteBackend::open(&path)?;
+            }
+            #[cfg(feature = "sled-backend")]
+            BackendType::Sled => {
+                let _backend = SledBackend::open(&path)?;
+            }
+            #[cfg(feature = "lmdb-backend")]
+            BackendType::Lmdb => {
+                let _backend = LmdbBackend::open(&path)?;
+            }
+        }
 
         // If no current vault, set this as current
         if self.config.current_vault()?.is_none() {
@@ -57,6 +76,11 @@ impl VaultManager {
         }
 
         Ok(())
+    }
+
+    /// Create a new vault (defaults to SQLite backend).
+    pub fn create(&self, name: &str) -> Result<()> {
+        self.create_with_backend(name, BackendType::Sqlite)
     }
 
     /// List all vaults.
@@ -74,30 +98,71 @@ impl VaultManager {
 
     /// Get info about a specific vault.
     pub fn info(&self, name: &str) -> Result<VaultInfo> {
-        if !self.config.vault_exists(name) {
-            return Err(VfsError::VaultNotFound(name.to_string()));
-        }
+        let backend_type = self.config.vault_backend(name).ok_or_else(|| {
+            VfsError::VaultNotFound(name.to_string())
+        })?;
 
         let current = self.config.current_vault()?;
-        let path = self.config.vault_path(name);
+        let path = self.config.vault_path_with_backend(name, backend_type);
 
-        let size = std::fs::metadata(&path)
-            .map(|m| m.len())
-            .unwrap_or(0);
+        let size = if path.is_dir() {
+            // For Sled, sum up directory contents
+            dir_size(&path)
+        } else {
+            std::fs::metadata(&path)
+                .map(|m| m.len())
+                .unwrap_or(0)
+        };
 
         // Get creation timestamp from the database
-        let created_at = if let Ok(backend) = SqliteBackend::open(&path) {
-            if let Ok(Some(ts_str)) = backend.get_setting("created_at") {
-                if let Ok(ts) = ts_str.parse::<i64>() {
-                    Utc.timestamp_opt(ts, 0).single()
+        let created_at = match backend_type {
+            BackendType::Sqlite => {
+                if let Ok(backend) = SqliteBackend::open(&path) {
+                    if let Ok(Some(ts_str)) = backend.get_setting("created_at") {
+                        if let Ok(ts) = ts_str.parse::<i64>() {
+                            Utc.timestamp_opt(ts, 0).single()
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
                 } else {
                     None
                 }
-            } else {
-                None
             }
-        } else {
-            None
+            #[cfg(feature = "sled-backend")]
+            BackendType::Sled => {
+                if let Ok(backend) = SledBackend::open(&path) {
+                    if let Ok(Some(ts_str)) = backend.get_setting("created_at") {
+                        if let Ok(ts) = ts_str.parse::<i64>() {
+                            Utc.timestamp_opt(ts, 0).single()
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            }
+            #[cfg(feature = "lmdb-backend")]
+            BackendType::Lmdb => {
+                if let Ok(backend) = LmdbBackend::open(&path) {
+                    if let Ok(Some(ts_str)) = backend.get_setting("created_at") {
+                        if let Ok(ts) = ts_str.parse::<i64>() {
+                            Utc.timestamp_opt(ts, 0).single()
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            }
         };
 
         Ok(VaultInfo {
@@ -105,6 +170,7 @@ impl VaultManager {
             is_current: current.as_deref() == Some(name),
             size,
             created_at,
+            backend: backend_type,
         })
     }
 
@@ -183,4 +249,20 @@ fn validate_vault_name(name: &str) -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Calculate the total size of a directory recursively.
+fn dir_size(path: &std::path::Path) -> u64 {
+    let mut size = 0;
+    if let Ok(entries) = std::fs::read_dir(path) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_file() {
+                size += std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+            } else if path.is_dir() {
+                size += dir_size(&path);
+            }
+        }
+    }
+    size
 }

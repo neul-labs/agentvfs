@@ -1,0 +1,15 @@
+pkgbase = avfs
+	pkgdesc = Virtual filesystem CLI backed by embedded databases for AI agents
+	pkgver = 0.1.0
+	pkgrel = 1
+	url = https://github.com/neul-labs/agentvfs
+	arch = x86_64
+	arch = aarch64
+	license = MIT
+	makedepends = rust
+	makedepends = cargo
+	depends = gcc-libs
+	source = avfs-0.1.0.tar.gz::https://github.com/neul-labs/agentvfs/archive/refs/tags/v0.1.0.tar.gz
+	sha256sums = PLACEHOLDER_SHA256
+
+pkgname = avfs

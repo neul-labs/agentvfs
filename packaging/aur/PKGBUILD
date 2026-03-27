@@ -1,0 +1,41 @@
+# Maintainer: Dipankar Sarkar <me@dipankar.name>
+pkgname=avfs
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Virtual filesystem CLI backed by embedded databases for AI agents"
+arch=('x86_64' 'aarch64')
+url="https://github.com/neul-labs/agentvfs"
+license=('MIT')
+depends=('gcc-libs')
+makedepends=('rust' 'cargo')
+source=("$pkgname-$pkgver.tar.gz::https://github.com/neul-labs/agentvfs/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('PLACEHOLDER_SHA256')
+
+build() {
+    cd "agentvfs-$pkgver"
+    export RUSTUP_TOOLCHAIN=stable
+    export CARGO_TARGET_DIR=target
+    cargo build --release --locked
+}
+
+check() {
+    cd "agentvfs-$pkgver"
+    export RUSTUP_TOOLCHAIN=stable
+    cargo test --release --locked
+}
+
+package() {
+    cd "agentvfs-$pkgver"
+
+    # Install binary
+    install -Dm755 "target/release/avfs" "$pkgdir/usr/bin/avfs"
+
+    # Install man page
+    install -Dm644 "man/avfs.1" "$pkgdir/usr/share/man/man1/avfs.1"
+
+    # Install license
+    install -Dm644 "LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+
+    # Install documentation
+    install -Dm644 "README.md" "$pkgdir/usr/share/doc/$pkgname/README.md"
+}

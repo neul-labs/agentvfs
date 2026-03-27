@@ -4,6 +4,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::error::{Result, VfsError};
+use crate::storage::BackendType;
 
 /// Global avfs configuration directory.
 pub struct Config {
@@ -51,9 +52,34 @@ impl Config {
         self.base_dir.join("vaults")
     }
 
-    /// Get the path to a vault's database file.
+    /// Get the path to a vault's database file with specified backend.
+    pub fn vault_path_with_backend(&self, name: &str, backend: BackendType) -> PathBuf {
+        self.vaults_dir()
+            .join(format!("{}.{}", name, backend.extension()))
+    }
+
+    /// Get the path to a vault's database file (auto-detect backend).
     pub fn vault_path(&self, name: &str) -> PathBuf {
-        self.vaults_dir().join(format!("{}.avfs", name))
+        // Check for each backend extension
+        for backend in BackendType::available() {
+            let path = self.vault_path_with_backend(name, backend);
+            if path.exists() {
+                return path;
+            }
+        }
+        // Default to sqlite if not found
+        self.vault_path_with_backend(name, BackendType::Sqlite)
+    }
+
+    /// Detect which backend type a vault uses.
+    pub fn vault_backend(&self, name: &str) -> Option<BackendType> {
+        for backend in BackendType::available() {
+            let path = self.vault_path_with_backend(name, backend);
+            if path.exists() {
+                return Some(backend);
+            }
+        }
+        None
     }
 
     /// Get the path to the current vault file.
@@ -113,12 +139,25 @@ impl Config {
             return Ok(vaults);
         }
 
+        // Collect valid extensions for all available backends
+        let valid_extensions: Vec<&str> = BackendType::available()
+            .iter()
+            .map(|b| b.extension())
+            .collect();
+
         for entry in fs::read_dir(&vaults_dir)? {
             let entry = entry?;
             let path = entry.path();
-            if path.extension().map_or(false, |ext| ext == "avfs") {
-                if let Some(stem) = path.file_stem() {
-                    vaults.push(stem.to_string_lossy().to_string());
+            if let Some(ext) = path.extension() {
+                let ext_str = ext.to_string_lossy();
+                if valid_extensions.contains(&ext_str.as_ref()) {
+                    if let Some(stem) = path.file_stem() {
+                        let name = stem.to_string_lossy().to_string();
+                        // Avoid duplicates if both backends exist for same vault name
+                        if !vaults.contains(&name) {
+                            vaults.push(name);
+                        }
+                    }
                 }
             }
         }
@@ -127,25 +166,58 @@ impl Config {
         Ok(vaults)
     }
 
-    /// Check if a vault exists.
+    /// Check if a vault exists (with any backend).
     pub fn vault_exists(&self, name: &str) -> bool {
-        self.vault_path(name).exists()
+        self.vault_backend(name).is_some()
+    }
+
+    /// Check if a vault with a specific backend exists.
+    pub fn vault_exists_with_backend(&self, name: &str, backend: BackendType) -> bool {
+        self.vault_path_with_backend(name, backend).exists()
     }
 
     /// Delete a vault's database file.
     pub fn delete_vault_file(&self, name: &str) -> Result<()> {
-        let path = self.vault_path(name);
-        if !path.exists() {
-            return Err(VfsError::VaultNotFound(name.to_string()));
+        let backend = self.vault_backend(name).ok_or_else(|| {
+            VfsError::VaultNotFound(name.to_string())
+        })?;
+
+        let path = self.vault_path_with_backend(name, backend);
+
+        match backend {
+            BackendType::Sqlite => {
+                // Also delete WAL and SHM files if they exist
+                let wal_path = path.with_extension("avfs-wal");
+                let shm_path = path.with_extension("avfs-shm");
+                fs::remove_file(&path)?;
+                let _ = fs::remove_file(&wal_path);
+                let _ = fs::remove_file(&shm_path);
+            }
+            #[cfg(feature = "sled-backend")]
+            BackendType::Sled => {
+                // Sled uses a directory
+                if path.is_dir() {
+                    fs::remove_dir_all(&path)?;
+                } else {
+                    fs::remove_file(&path)?;
+                }
+                // Also remove tantivy index directory if exists
+                let index_path = path.with_extension("tantivy");
+                let _ = fs::remove_dir_all(&index_path);
+            }
+            #[cfg(feature = "lmdb-backend")]
+            BackendType::Lmdb => {
+                // LMDB uses a directory
+                if path.is_dir() {
+                    fs::remove_dir_all(&path)?;
+                } else {
+                    fs::remove_file(&path)?;
+                }
+                // Also remove tantivy index directory if exists
+                let index_path = path.with_extension("lmdb.tantivy");
+                let _ = fs::remove_dir_all(&index_path);
+            }
         }
-
-        // Also delete WAL and SHM files if they exist
-        let wal_path = path.with_extension("avfs-wal");
-        let shm_path = path.with_extension("avfs-shm");
-
-        fs::remove_file(&path)?;
-        let _ = fs::remove_file(&wal_path);
-        let _ = fs::remove_file(&shm_path);
 
         // If this was the current vault, clear the selection
         if let Ok(Some(current)) = self.current_vault() {

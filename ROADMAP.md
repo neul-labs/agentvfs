@@ -1,6 +1,6 @@
 # vfs Roadmap
 
-## Project Status: Documentation Complete, Implementation Pending
+## Project Status: Core Implementation Complete (Phases 1-7)
 
 This document outlines the implementation roadmap for vfs, a virtual filesystem CLI backed by embedded databases.
 
@@ -11,44 +11,44 @@ This document outlines the implementation roadmap for vfs, a virtual filesystem 
 **Goal:** Minimal viable filesystem with SQLite backend
 
 ### 1.1 Project Setup
-- [ ] Initialize Rust project with Cargo
-- [ ] Set up project structure (src/lib.rs, src/main.rs, src/commands/, src/storage/)
-- [ ] Add dependencies: clap, rusqlite, serde, sha2, thiserror
-- [ ] Set up error types and Result aliases
+- [x] Initialize Rust project with Cargo
+- [x] Set up project structure (src/lib.rs, src/main.rs, src/commands/, src/storage/)
+- [x] Add dependencies: clap, rusqlite, serde, sha2, thiserror
+- [x] Set up error types and Result aliases
 
 ### 1.2 Storage Backend Trait
-- [ ] Define `StorageBackend` trait (get, put, delete, scan, transaction)
-- [ ] Define `SearchBackend` trait (index, search, remove)
-- [ ] Implement SQLite backend
-- [ ] Implement SQLite FTS5 search backend
+- [x] Define `StorageBackend` trait (get, put, delete, scan, transaction)
+- [x] Define `SearchBackend` trait (index, search, remove)
+- [x] Implement SQLite backend
+- [x] Implement SQLite FTS5 search backend
 
 ### 1.3 Core Data Structures
-- [ ] FileEntry, ContentBlob, VersionEntry structs
-- [ ] Serialization with bincode/serde
-- [ ] Path normalization utilities
-- [ ] SHA-256 content hashing
+- [x] FileEntry, ContentBlob, VersionEntry structs
+- [x] Serialization with bincode/serde
+- [x] Path normalization utilities
+- [x] SHA-256 content hashing
 
 ### 1.4 Vault Management
-- [ ] `vfs vault create` - create new vault
-- [ ] `vfs vault list` - list vaults
-- [ ] `vfs vault use` - switch active vault
-- [ ] `vfs vault delete` - delete vault
-- [ ] `vfs vault info` - show vault info
-- [ ] Global config file (~/.vfs/config.toml)
+- [x] `vfs vault create` - create new vault
+- [x] `vfs vault list` - list vaults
+- [x] `vfs vault use` - switch active vault
+- [x] `vfs vault delete` - delete vault
+- [x] `vfs vault info` - show vault info
+- [x] Global config file (~/.vfs/config.toml)
 
 ### 1.5 Basic File Operations
-- [ ] `vfs ls` - list directory
-- [ ] `vfs mkdir` - create directory
-- [ ] `vfs rmdir` - remove empty directory
-- [ ] `vfs touch` - create empty file
-- [ ] `vfs write` - write content to file
-- [ ] `vfs cat` - read file content
-- [ ] `vfs cp` - copy file/directory
-- [ ] `vfs mv` - move/rename file
-- [ ] `vfs rm` - remove file/directory
-- [ ] `vfs pwd` - print working directory
-- [ ] `vfs cd` - change directory
-- [ ] `vfs tree` - display tree
+- [x] `vfs ls` - list directory
+- [x] `vfs mkdir` - create directory
+- [x] `vfs rmdir` - remove empty directory
+- [x] `vfs touch` - create empty file
+- [x] `vfs write` - write content to file
+- [x] `vfs cat` - read file content
+- [x] `vfs cp` - copy file/directory
+- [x] `vfs mv` - move/rename file
+- [x] `vfs rm` - remove file/directory
+- [x] `vfs pwd` - print working directory
+- [x] `vfs cd` - change directory
+- [x] `vfs tree` - display tree
 
 ---
 
@@ -57,18 +57,18 @@ This document outlines the implementation roadmap for vfs, a virtual filesystem 
 **Goal:** Automatic versioning and content search
 
 ### 2.1 Automatic Versioning
-- [ ] Create version on every write
-- [ ] `vfs log` - show version history
-- [ ] `vfs cat -v <N>` - read specific version
-- [ ] `vfs checkout` - restore version
-- [ ] `vfs revert` - revert to previous
-- [ ] `vfs diff` - compare files/versions
+- [x] Create version on every write
+- [x] `vfs log` - show version history
+- [x] `vfs cat -v <N>` - read specific version
+- [x] `vfs checkout` - restore version
+- [x] `vfs revert` - revert to previous
+- [x] `vfs diff` - compare files/versions
 
 ### 2.2 Search
-- [ ] FTS5 index management
-- [ ] `vfs search` - full-text search
-- [ ] `vfs grep` - regex content search
-- [ ] `vfs find` - find by name/attributes
+- [x] FTS5 index management
+- [x] `vfs search` - full-text search
+- [x] `vfs grep` - regex content search
+- [x] `vfs find` - find by name/attributes
 
 ---
 
@@ -77,16 +77,16 @@ This document outlines the implementation roadmap for vfs, a virtual filesystem 
 **Goal:** Rich file organization
 
 ### 3.1 Tags
-- [ ] `vfs tag` - add tags to files
-- [ ] `vfs untag` - remove tags
-- [ ] `vfs tag --list` - list all tags
-- [ ] `vfs tag --create/--delete/--rename`
-- [ ] `vfs find -tag` - find by tag
+- [x] `vfs tag` - add tags to files
+- [x] `vfs untag` - remove tags
+- [x] `vfs tag --list` - list all tags
+- [x] `vfs tag --create/--delete/--rename`
+- [x] `vfs find -tag` - find by tag
 
 ### 3.2 Custom Metadata
-- [ ] `vfs meta` - get/set metadata
-- [ ] `vfs meta --export/--import`
-- [ ] `vfs find -meta` - find by metadata
+- [x] `vfs meta` - get/set metadata
+- [x] `vfs meta --export/--import`
+- [x] `vfs find -meta` - find by metadata
 
 ---
 
@@ -95,15 +95,15 @@ This document outlines the implementation roadmap for vfs, a virtual filesystem 
 **Goal:** Bridge to real filesystem
 
 ### 4.1 Import/Export
-- [ ] `vfs import` - import from real filesystem
-- [ ] `vfs export` - export to real filesystem
-- [ ] Recursive import/export
+- [x] `vfs import` - import from real filesystem
+- [x] `vfs export` - export to real filesystem
+- [x] Recursive import/export
 
 ### 4.2 External Commands
-- [ ] `vfs exec` - run command on virtual file
-- [ ] Temp file extraction and re-import
-- [ ] Glob pattern support
-- [ ] Pipe support (`vfs cat | cmd | vfs write`)
+- [x] `vfs exec` - run command on virtual file
+- [x] Temp file extraction and re-import
+- [x] Glob pattern support
+- [x] Pipe support (`vfs cat | cmd | vfs write`)
 
 ---
 
@@ -112,16 +112,16 @@ This document outlines the implementation roadmap for vfs, a virtual filesystem 
 **Goal:** Storage management and optimization
 
 ### 5.1 Pruning
-- [ ] `vfs prune --keep <N>` - keep last N versions
-- [ ] `vfs prune --older-than <DAYS>` - time-based
-- [ ] `vfs prune --max-size <MB>` - size-based
-- [ ] `vfs vault config` - configure prune defaults
+- [x] `vfs prune --keep <N>` - keep last N versions
+- [x] `vfs prune --older-than <DAYS>` - time-based
+- [x] `vfs prune --max-size <MB>` - size-based
+- [x] `vfs vault config` - configure prune defaults
 
 ### 5.2 Garbage Collection & Compaction
-- [ ] `vfs gc` - remove orphaned blobs
-- [ ] `vfs compact` - reclaim space (VACUUM)
-- [ ] `vfs maintain` - full maintenance routine
-- [ ] `vfs vault stats` - storage statistics
+- [x] `vfs gc` - remove orphaned blobs
+- [x] `vfs compact` - reclaim space (VACUUM)
+- [x] `vfs maintain` - full maintenance routine
+- [x] `vfs vault stats` - storage statistics
 
 ---
 
@@ -130,27 +130,27 @@ This document outlines the implementation roadmap for vfs, a virtual filesystem 
 **Goal:** AI agent sandbox support
 
 ### 6.1 JSON Output
-- [ ] `--json` flag on all commands
-- [ ] Consistent JSON error format
-- [ ] Structured output for parsing
+- [x] `--json` flag on all commands
+- [x] Consistent JSON error format
+- [x] Structured output for parsing
 
 ### 6.2 Snapshots
-- [ ] `vfs snapshot save` - save vault state
-- [ ] `vfs snapshot list` - list snapshots
-- [ ] `vfs snapshot restore` - restore state
-- [ ] `vfs snapshot delete` - delete snapshot
+- [x] `vfs snapshot save` - save vault state
+- [x] `vfs snapshot list` - list snapshots
+- [x] `vfs snapshot restore` - restore state
+- [x] `vfs snapshot delete` - delete snapshot
 
 ### 6.3 Quotas
-- [ ] `max_size_mb` limit
-- [ ] `max_files` limit
-- [ ] `max_file_size_mb` limit
-- [ ] Quota enforcement on write operations
+- [x] `max_size_mb` limit
+- [x] `max_files` limit
+- [x] `max_file_size_mb` limit
+- [x] Quota enforcement on write operations
 
 ### 6.4 Audit Log
-- [ ] Log all operations to vault
-- [ ] `vfs audit` - view operation history
-- [ ] `vfs audit clear` - clear log
-- [ ] Auto-rotation at max entries
+- [x] Log all operations to vault
+- [x] `vfs audit` - view operation history
+- [x] `vfs audit clear` - clear log
+- [x] Auto-rotation at max entries
 
 ---
 
@@ -158,12 +158,12 @@ This document outlines the implementation roadmap for vfs, a virtual filesystem 
 
 **Goal:** REPL experience
 
-- [ ] `vfs shell` - launch interactive mode
-- [ ] Command parsing without `vfs` prefix
-- [ ] Custom prompt with vault/path
-- [ ] Tab completion (rustyline)
-- [ ] Command history
-- [ ] `vfs aliases` - generate shell aliases
+- [x] `vfs shell` - launch interactive mode
+- [x] Command parsing without `vfs` prefix
+- [x] Custom prompt with vault/path
+- [x] Tab completion (rustyline)
+- [x] Command history
+- [x] `vfs aliases` - generate shell aliases
 
 ---
 
@@ -172,12 +172,12 @@ This document outlines the implementation roadmap for vfs, a virtual filesystem 
 **Goal:** Pluggable storage options
 
 ### 8.1 Sled Backend
-- [ ] Implement `StorageBackend` for Sled
-- [ ] Tantivy search integration
+- [x] Implement `StorageBackend` for Sled
+- [x] Tantivy search integration
 
 ### 8.2 LMDB Backend
-- [ ] Implement `StorageBackend` for LMDB
-- [ ] Tantivy search integration
+- [x] Implement `StorageBackend` for LMDB
+- [x] Tantivy search integration
 
 ### 8.3 RocksDB Backend
 - [ ] Implement `StorageBackend` for RocksDB
@@ -194,20 +194,20 @@ This document outlines the implementation roadmap for vfs, a virtual filesystem 
 **Goal:** Production-ready release
 
 ### 9.1 Testing
-- [ ] Unit tests for all commands
-- [ ] Integration tests
+- [x] Unit tests for all commands
+- [x] Integration tests
 - [ ] Fuzzing for parser/storage
 - [ ] Benchmark suite
 
 ### 9.2 Documentation
 - [x] README.md
 - [x] docs/*.md (all documentation)
-- [ ] Man pages
-- [ ] `--help` text for all commands
+- [x] Man pages
+- [x] `--help` text for all commands
 
 ### 9.3 Distribution
 - [ ] Publish to crates.io
-- [ ] GitHub releases with binaries
+- [x] GitHub releases with binaries
 - [ ] Homebrew formula
 - [ ] AUR package
 
@@ -286,10 +286,10 @@ vfs/
 
 ## Success Metrics
 
-- [ ] All commands work as documented
-- [ ] JSON output parseable by Python/JS
-- [ ] Snapshots save/restore correctly
-- [ ] Quotas prevent runaway usage
+- [x] All commands work as documented
+- [x] JSON output parseable by Python/JS
+- [x] Snapshots save/restore correctly
+- [x] Quotas prevent runaway usage
 - [ ] Backend migration preserves all data
-- [ ] Interactive shell is responsive
-- [ ] No data loss under any circumstance
+- [x] Interactive shell is responsive
+- [x] No data loss under any circumstance

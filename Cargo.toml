@@ -24,6 +24,15 @@ clap = { version = "4", features = ["derive"] }
 # Database
 rusqlite = { version = "0.31", features = ["bundled"] }
 
+# Sled embedded database (optional)
+sled = { version = "0.34", optional = true }
+
+# Full-text search for Sled/LMDB backend (optional)
+tantivy = { version = "0.22", optional = true }
+
+# LMDB embedded database (optional)
+heed = { version = "0.20", optional = true }
+
 # Serialization
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -65,8 +74,13 @@ libc = { version = "0.2", optional = true }
 [features]
 default = []
 fuse = ["fuser", "libc"]
+sled-backend = ["sled", "tantivy"]
+lmdb-backend = ["heed", "tantivy"]
 
 [dev-dependencies]
+assert_cmd = "2.0"
+predicates = "3.0"
+assert_fs = "1.1"
 
 [[bin]]
 name = "avfs"

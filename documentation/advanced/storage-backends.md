@@ -1,8 +1,30 @@
 # Storage Backends
 
-VFS uses a pluggable storage backend architecture, allowing different embedded databases to be used as the underlying storage engine.
+avfs uses a pluggable storage backend architecture, allowing different embedded databases to be used as the underlying storage engine.
 
 ## Available Backends
+
+| Backend | Extension | Feature Flag | Best For |
+|---------|-----------|--------------|----------|
+| **SQLite** (default) | `.avfs` | Always available | General use, queries |
+| **Sled** | `.sled` | `sled-backend` | High write throughput |
+| **LMDB** | `.lmdb` | `lmdb-backend` | Read-heavy, memory-mapped |
+| **RocksDB** | `.rocksdb` | `rocksdb-backend` (planned) | Large datasets, LSM |
+
+### Installing with Optional Backends
+
+```bash
+# Install with Sled backend
+cargo install agentvfs --features sled-backend
+
+# Install with LMDB backend
+cargo install agentvfs --features lmdb-backend
+
+# Install with all optional backends
+cargo install agentvfs --features "sled-backend,lmdb-backend"
+```
+
+### Backend Comparison
 
 | Backend | Best For | Trade-offs |
 |---------|----------|------------|
