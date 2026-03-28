@@ -5,11 +5,12 @@ use std::sync::Arc;
 use chrono::{DateTime, TimeZone, Utc};
 
 use crate::error::{Result, VfsError};
-use crate::storage::{BackendType, SqliteBackend};
-#[cfg(feature = "sled-backend")]
-use crate::storage::SledBackend;
 #[cfg(feature = "lmdb-backend")]
 use crate::storage::LmdbBackend;
+#[cfg(feature = "sled-backend")]
+use crate::storage::SledBackend;
+use crate::storage::SqliteBackend;
+use crate::storage::{BackendType, VaultBackend};
 use crate::vault::Config;
 
 /// Information about a vault.
@@ -98,9 +99,10 @@ impl VaultManager {
 
     /// Get info about a specific vault.
     pub fn info(&self, name: &str) -> Result<VaultInfo> {
-        let backend_type = self.config.vault_backend(name).ok_or_else(|| {
-            VfsError::VaultNotFound(name.to_string())
-        })?;
+        let backend_type = self
+            .config
+            .vault_backend(name)
+            .ok_or_else(|| VfsError::VaultNotFound(name.to_string()))?;
 
         let current = self.config.current_vault()?;
         let path = self.config.vault_path_with_backend(name, backend_type);
@@ -109,9 +111,7 @@ impl VaultManager {
             // For Sled, sum up directory contents
             dir_size(&path)
         } else {
-            std::fs::metadata(&path)
-                .map(|m| m.len())
-                .unwrap_or(0)
+            std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0)
         };
 
         // Get creation timestamp from the database
@@ -195,20 +195,22 @@ impl VaultManager {
     }
 
     /// Open the current vault's storage backend.
-    pub fn open_current(&self) -> Result<Arc<SqliteBackend>> {
-        let name = self.config.current_vault()?.ok_or(VfsError::NoActiveVault)?;
-        let path = self.config.vault_path(&name);
-        Ok(Arc::new(SqliteBackend::open(&path)?))
+    pub fn open_current(&self) -> Result<Arc<VaultBackend>> {
+        let name = self
+            .config
+            .current_vault()?
+            .ok_or(VfsError::NoActiveVault)?;
+        self.open(&name)
     }
 
     /// Open a specific vault's storage backend.
-    pub fn open(&self, name: &str) -> Result<Arc<SqliteBackend>> {
-        if !self.config.vault_exists(name) {
-            return Err(VfsError::VaultNotFound(name.to_string()));
-        }
-
-        let path = self.config.vault_path(name);
-        Ok(Arc::new(SqliteBackend::open(&path)?))
+    pub fn open(&self, name: &str) -> Result<Arc<VaultBackend>> {
+        let backend = self
+            .config
+            .vault_backend(name)
+            .ok_or_else(|| VfsError::VaultNotFound(name.to_string()))?;
+        let path = self.config.vault_path_with_backend(name, backend);
+        Ok(Arc::new(VaultBackend::open(&path, backend)?))
     }
 }
 
@@ -221,7 +223,9 @@ impl Default for VaultManager {
 /// Validate a vault name.
 fn validate_vault_name(name: &str) -> Result<()> {
     if name.is_empty() {
-        return Err(VfsError::InvalidPath("vault name cannot be empty".to_string()));
+        return Err(VfsError::InvalidPath(
+            "vault name cannot be empty".to_string(),
+        ));
     }
 
     if name.len() > 64 {

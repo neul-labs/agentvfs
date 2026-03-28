@@ -6,21 +6,21 @@ use std::sync::Arc;
 use crate::error::{Result, VfsError};
 use crate::fs::entry::{DirEntry, FileEntry, FileType};
 use crate::fs::path;
-use crate::storage::SqliteBackend;
+use crate::storage::VaultBackend;
 
 /// Virtual filesystem operations.
 pub struct FileSystem {
-    backend: Arc<SqliteBackend>,
+    backend: Arc<VaultBackend>,
 }
 
 impl FileSystem {
     /// Create a new filesystem with the given storage backend.
-    pub fn new(backend: Arc<SqliteBackend>) -> Self {
+    pub fn new(backend: Arc<VaultBackend>) -> Self {
         Self { backend }
     }
 
     /// Get the storage backend.
-    pub fn backend(&self) -> &Arc<SqliteBackend> {
+    pub fn backend(&self) -> &Arc<VaultBackend> {
         &self.backend
     }
 
@@ -39,7 +39,7 @@ impl FileSystem {
             return Err(VfsError::NotADirectory(PathBuf::from(normalized)));
         }
 
-        let children = self.backend.list_children(entry.id)?;
+        let children = self.backend.list_children(&normalized)?;
         Ok(children.iter().map(DirEntry::from).collect())
     }
 
@@ -84,7 +84,7 @@ impl FileSystem {
         let size = content.len() as u64;
 
         // Check if file exists
-        let file_id = if let Some(file_id) = self.backend.get_file_id(parent.id, &name)? {
+        if let Some(file_id) = self.backend.get_file_id(parent.id, &name)? {
             // File exists - create version snapshot of CURRENT state before updating
             let current = self.backend.get_entry_by_id(file_id)?;
             if let Some(current_hash) = current.content_hash {
@@ -94,7 +94,6 @@ impl FileSystem {
 
             // Update existing file with new content
             self.backend.update_file(file_id, &hash, size)?;
-            file_id
         } else {
             // Create new file
             let file_id = self
@@ -103,10 +102,9 @@ impl FileSystem {
 
             // Create initial version (version 1)
             self.backend.create_version(file_id, &hash, size)?;
-            file_id
-        };
+        }
 
-        self.backend.sync_file_index(file_id, &normalized)?;
+        self.backend.sync_file_index(&normalized)?;
 
         Ok(())
     }
@@ -182,10 +180,11 @@ impl FileSystem {
             }
         }
 
-        self.remove_index_subtree(entry.id)?;
+        self.remove_index_subtree(&normalized)?;
 
         // Delete entry (CASCADE handles children)
-        self.backend.delete_entry(entry.id, &normalized)?;
+        self.backend
+            .delete_entry(entry.id, &normalized, recursive)?;
 
         Ok(())
     }
@@ -227,10 +226,9 @@ impl FileSystem {
         }
 
         let new_path = path::join(&parent_path, &name)?;
-        let file_id = self
-            .backend
+        self.backend
             .copy_file(src_entry, parent.id, &name, &new_path)?;
-        self.backend.sync_file_index(file_id, &new_path)?;
+        self.backend.sync_file_index(&new_path)?;
 
         Ok(())
     }
@@ -259,6 +257,12 @@ impl FileSystem {
         }
 
         let new_dir_path = path::join(&parent_path, &name)?;
+        if path_is_same_or_descendant(src_path, &new_dir_path) {
+            return Err(VfsError::InvalidPath(format!(
+                "cannot copy '{}' into itself or its descendant '{}'",
+                src_path, new_dir_path
+            )));
+        }
 
         // Create new directory
         self.backend
@@ -266,7 +270,7 @@ impl FileSystem {
         let new_dir = self.backend.get_entry_by_path(&new_dir_path)?;
 
         // Copy children
-        let children = self.backend.list_children(src_entry.id)?;
+        let children = self.backend.list_children(src_path)?;
         for child in children {
             let child_src_path = path::join(src_path, &child.name)?;
             let child_dst_path = path::join(&new_dir_path, &child.name)?;
@@ -274,10 +278,9 @@ impl FileSystem {
             if child.is_dir() {
                 self.copy_dir(&child_src_path, &child_dst_path)?;
             } else {
-                let file_id =
-                    self.backend
-                        .copy_file(&child, new_dir.id, &child.name, &child_dst_path)?;
-                self.backend.sync_file_index(file_id, &child_dst_path)?;
+                self.backend
+                    .copy_file(&child, new_dir.id, &child.name, &child_dst_path)?;
+                self.backend.sync_file_index(&child_dst_path)?;
             }
         }
 
@@ -323,6 +326,12 @@ impl FileSystem {
         }
 
         let new_path = path::join(&parent_path, &name)?;
+        if src_entry.is_dir() && path_is_same_or_descendant(&src_normalized, &new_path) {
+            return Err(VfsError::InvalidPath(format!(
+                "cannot move '{}' into itself or its descendant '{}'",
+                src_normalized, new_path
+            )));
+        }
 
         // Move entry
         self.backend
@@ -333,35 +342,36 @@ impl FileSystem {
             self.backend.rebuild_child_paths(src_entry.id, &new_path)?;
         }
 
-        self.sync_index_subtree(src_entry.id, &new_path)?;
+        self.sync_index_subtree(&new_path)?;
 
         Ok(())
     }
 
-    fn remove_index_subtree(&self, entry_id: i64) -> Result<()> {
-        let entry = self.backend.get_entry_by_id(entry_id)?;
+    fn remove_index_subtree(&self, vpath: &str) -> Result<()> {
+        let entry = self.backend.get_entry_by_path(vpath)?;
         if entry.is_file() {
-            self.backend.remove_from_index(entry.id)?;
+            self.backend.remove_from_index(vpath)?;
             return Ok(());
         }
 
-        for child in self.backend.list_children(entry.id)? {
-            self.remove_index_subtree(child.id)?;
-        }
-
-        Ok(())
-    }
-
-    fn sync_index_subtree(&self, entry_id: i64, vpath: &str) -> Result<()> {
-        let entry = self.backend.get_entry_by_id(entry_id)?;
-        if entry.is_file() {
-            self.backend.sync_file_index(entry.id, vpath)?;
-            return Ok(());
-        }
-
-        for child in self.backend.list_children(entry.id)? {
+        for child in self.backend.list_children(vpath)? {
             let child_path = path::join(vpath, &child.name)?;
-            self.sync_index_subtree(child.id, &child_path)?;
+            self.remove_index_subtree(&child_path)?;
+        }
+
+        Ok(())
+    }
+
+    fn sync_index_subtree(&self, vpath: &str) -> Result<()> {
+        let entry = self.backend.get_entry_by_path(vpath)?;
+        if entry.is_file() {
+            self.backend.sync_file_index(vpath)?;
+            return Ok(());
+        }
+
+        for child in self.backend.list_children(vpath)? {
+            let child_path = path::join(vpath, &child.name)?;
+            self.sync_index_subtree(&child_path)?;
         }
 
         Ok(())
@@ -392,7 +402,7 @@ impl FileSystem {
         max_depth: Option<usize>,
     ) -> Result<TreeNode> {
         let children = if entry.is_dir() && max_depth.map_or(true, |m| depth < m) {
-            let entries = self.backend.list_children(entry.id)?;
+            let entries = self.backend.list_children(vpath)?;
             let mut children = Vec::new();
             for child in entries {
                 let child_path = path::join(vpath, &child.name)?;
@@ -460,10 +470,17 @@ impl TreeNode {
     }
 }
 
+fn path_is_same_or_descendant(root: &str, candidate: &str) -> bool {
+    candidate == root
+        || candidate
+            .strip_prefix(root)
+            .is_some_and(|suffix| suffix.starts_with('/'))
+}
+
 #[cfg(test)]
 mod tests {
     use super::FileSystem;
-    use crate::storage::SqliteBackend;
+    use crate::storage::{BackendType, VaultBackend};
     use std::sync::Arc;
     use tempfile::tempdir;
 
@@ -471,7 +488,7 @@ mod tests {
     fn binary_rewrite_removes_stale_search_results() {
         let dir = tempdir().unwrap();
         let db_path = dir.path().join("test.avfs");
-        let backend = Arc::new(SqliteBackend::open(&db_path).unwrap());
+        let backend = Arc::new(VaultBackend::open(&db_path, BackendType::Sqlite).unwrap());
         let fs = FileSystem::new(backend.clone());
 
         fs.create_dir("/docs").unwrap();

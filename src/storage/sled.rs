@@ -60,7 +60,6 @@ pub struct SledBackend {
     index: Index,
     index_writer: RwLock<IndexWriter>,
     index_reader: IndexReader,
-    schema: Schema,
     field_path: Field,
     field_content: Field,
 }
@@ -266,7 +265,6 @@ impl SledBackend {
             index,
             index_writer: RwLock::new(index_writer),
             index_reader,
-            schema,
             field_path,
             field_content,
         };
@@ -444,6 +442,11 @@ impl SledBackend {
 
         children.sort_by(|a, b| a.name.cmp(&b.name));
         Ok(children)
+    }
+
+    /// Check whether a directory has any children.
+    pub fn has_children(&self, parent_id: i64) -> Result<bool> {
+        Ok(!self.list_children(parent_id)?.is_empty())
     }
 
     /// Create a new file.
@@ -871,7 +874,8 @@ impl SledBackend {
             versions.push(stored.into());
         }
 
-        versions.sort_by(|a: &FileVersion, b: &FileVersion| b.version_number.cmp(&a.version_number));
+        versions
+            .sort_by(|a: &FileVersion, b: &FileVersion| b.version_number.cmp(&a.version_number));
         Ok(versions)
     }
 
@@ -1018,7 +1022,7 @@ impl SledBackend {
     }
 
     /// Remove a file from the search index.
-    fn remove_from_index(&self, path: &str) -> Result<()> {
+    pub fn remove_from_index(&self, path: &str) -> Result<()> {
         let mut writer = self.index_writer.write().unwrap();
         let term = tantivy::Term::from_field_text(self.field_path, path);
         writer.delete_term(term);
@@ -1823,7 +1827,12 @@ impl SledBackend {
     // =========================================================================
 
     /// Log an operation.
-    pub fn log_operation(&self, operation: &str, path: Option<&str>, details: Option<&str>) -> Result<()> {
+    pub fn log_operation(
+        &self,
+        operation: &str,
+        path: Option<&str>,
+        details: Option<&str>,
+    ) -> Result<()> {
         let audit_tree = self.db.open_tree(TREE_AUDIT)?;
 
         let audit_id = self.next_id(&self.next_audit_id);
@@ -2168,7 +2177,9 @@ mod tests {
         let hash = backend.write_content(content).unwrap();
 
         // Create file
-        let file_id = backend.create_file(1, "test.txt", hash, content.len() as u64).unwrap();
+        let _file_id = backend
+            .create_file(1, "test.txt", hash, content.len() as u64)
+            .unwrap();
 
         // Read back
         let entry = backend.get_entry_by_path("/test.txt").unwrap();
@@ -2188,18 +2199,26 @@ mod tests {
         // Create file with initial content
         let content1 = b"Version 1";
         let hash1 = backend.write_content(content1).unwrap();
-        let file_id = backend.create_file(1, "versioned.txt", hash1, content1.len() as u64).unwrap();
+        let file_id = backend
+            .create_file(1, "versioned.txt", hash1, content1.len() as u64)
+            .unwrap();
 
         // Create version 1
-        backend.create_version(file_id, hash1, content1.len() as u64).unwrap();
+        backend
+            .create_version(file_id, hash1, content1.len() as u64)
+            .unwrap();
 
         // Update file
         let content2 = b"Version 2";
         let hash2 = backend.write_content(content2).unwrap();
-        backend.update_file(file_id, hash2, content2.len() as u64).unwrap();
+        backend
+            .update_file(file_id, hash2, content2.len() as u64)
+            .unwrap();
 
         // Create version 2
-        backend.create_version(file_id, hash2, content2.len() as u64).unwrap();
+        backend
+            .create_version(file_id, hash2, content2.len() as u64)
+            .unwrap();
 
         // Check versions
         let versions = backend.get_file_versions(file_id).unwrap();

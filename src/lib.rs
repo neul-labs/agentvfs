@@ -9,11 +9,13 @@
 //!
 //! ```no_run
 //! use std::sync::Arc;
-//! use agentvfs::storage::SqliteBackend;
+//! use agentvfs::storage::{BackendType, VaultBackend};
 //! use agentvfs::fs::FileSystem;
 //!
 //! // Open a storage backend
-//! let backend = Arc::new(SqliteBackend::open(std::path::Path::new("my.avfs")).unwrap());
+//! let backend = Arc::new(
+//!     VaultBackend::open(std::path::Path::new("my.avfs"), BackendType::Sqlite).unwrap()
+//! );
 //!
 //! // Create filesystem
 //! let fs = FileSystem::new(backend);

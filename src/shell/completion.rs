@@ -9,18 +9,14 @@ use rustyline::validate::Validator;
 use rustyline::{Context, Helper};
 
 use crate::fs::FileSystem;
-use crate::storage::SqliteBackend;
+use crate::storage::VaultBackend;
 use crate::vault::VaultManager;
 
 /// List of all available commands.
 pub const COMMANDS: &[&str] = &[
-    "vault", "ls", "cat", "write", "mkdir", "rm", "cp", "mv", "tree", "pwd",
-    "log", "checkout", "revert", "diff",
-    "search", "grep", "find",
-    "tag", "untag", "meta",
-    "import", "export", "exec",
-    "stats", "prune", "gc", "compact", "maintain",
-    "quota", "audit", "snapshot",
+    "vault", "ls", "cat", "write", "mkdir", "rm", "cp", "mv", "tree", "pwd", "log", "checkout",
+    "revert", "diff", "search", "grep", "find", "tag", "untag", "meta", "import", "export", "exec",
+    "stats", "prune", "gc", "compact", "maintain", "quota", "audit", "snapshot",
     // Built-in shell commands
     "exit", "quit", "help", "clear",
 ];
@@ -37,7 +33,7 @@ pub const SUBCOMMANDS: &[(&str, &[&str])] = &[
 /// Shell helper that provides completion.
 pub struct ShellHelper {
     /// Current vault backend (if any).
-    backend: Option<Arc<SqliteBackend>>,
+    backend: Option<Arc<VaultBackend>>,
 }
 
 impl ShellHelper {

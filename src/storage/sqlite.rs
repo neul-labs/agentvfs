@@ -185,6 +185,56 @@ impl SqliteBackend {
 
             CREATE INDEX idx_snapshot_files_snapshot ON snapshot_files(snapshot_id);
 
+            -- Snapshot version history
+            CREATE TABLE snapshot_versions (
+                id INTEGER PRIMARY KEY,
+                snapshot_id INTEGER NOT NULL REFERENCES snapshots(id) ON DELETE CASCADE,
+                path TEXT NOT NULL,
+                version_number INTEGER NOT NULL,
+                content_hash BLOB NOT NULL,
+                size INTEGER NOT NULL,
+                created_at INTEGER NOT NULL,
+                UNIQUE(snapshot_id, path, version_number)
+            );
+
+            CREATE INDEX idx_snapshot_versions_snapshot ON snapshot_versions(snapshot_id);
+
+            -- Snapshot tag registry
+            CREATE TABLE snapshot_tags (
+                id INTEGER PRIMARY KEY,
+                snapshot_id INTEGER NOT NULL REFERENCES snapshots(id) ON DELETE CASCADE,
+                name TEXT NOT NULL,
+                created_at INTEGER NOT NULL,
+                UNIQUE(snapshot_id, name)
+            );
+
+            CREATE INDEX idx_snapshot_tags_snapshot ON snapshot_tags(snapshot_id);
+
+            -- Snapshot file-tag associations
+            CREATE TABLE snapshot_file_tags (
+                id INTEGER PRIMARY KEY,
+                snapshot_id INTEGER NOT NULL REFERENCES snapshots(id) ON DELETE CASCADE,
+                path TEXT NOT NULL,
+                tag_name TEXT NOT NULL,
+                created_at INTEGER NOT NULL,
+                UNIQUE(snapshot_id, path, tag_name)
+            );
+
+            CREATE INDEX idx_snapshot_file_tags_snapshot ON snapshot_file_tags(snapshot_id);
+
+            -- Snapshot metadata
+            CREATE TABLE snapshot_metadata (
+                id INTEGER PRIMARY KEY,
+                snapshot_id INTEGER NOT NULL REFERENCES snapshots(id) ON DELETE CASCADE,
+                path TEXT NOT NULL,
+                key TEXT NOT NULL,
+                value TEXT NOT NULL,
+                modified_at INTEGER NOT NULL,
+                UNIQUE(snapshot_id, path, key)
+            );
+
+            CREATE INDEX idx_snapshot_metadata_snapshot ON snapshot_metadata(snapshot_id);
+
             -- Audit log for operations
             CREATE TABLE audit_log (
                 id INTEGER PRIMARY KEY,
@@ -204,7 +254,7 @@ impl SqliteBackend {
             INSERT INTO paths (path, file_id) VALUES ('/', 1);
 
             INSERT INTO settings (key, value) VALUES
-                ('schema_version', '4'),
+                ('schema_version', '5'),
                 ('created_at', strftime('%s', 'now'));
             "#,
         )?;
@@ -227,7 +277,7 @@ impl SqliteBackend {
 
         let version_num: u32 = version.parse().unwrap_or(1);
 
-        if version_num >= 4 {
+        if version_num >= 5 {
             return Ok(());
         }
 
@@ -273,6 +323,61 @@ impl SqliteBackend {
 
                 -- Update schema version
                 UPDATE settings SET value = '4' WHERE key = 'schema_version';
+                "#,
+            )?;
+        }
+
+        // Migrate from v4 to v5: Add snapshot state tables for versions, tags, and metadata
+        if version_num < 5 {
+            conn.execute_batch(
+                r#"
+                CREATE TABLE IF NOT EXISTS snapshot_versions (
+                    id INTEGER PRIMARY KEY,
+                    snapshot_id INTEGER NOT NULL REFERENCES snapshots(id) ON DELETE CASCADE,
+                    path TEXT NOT NULL,
+                    version_number INTEGER NOT NULL,
+                    content_hash BLOB NOT NULL,
+                    size INTEGER NOT NULL,
+                    created_at INTEGER NOT NULL,
+                    UNIQUE(snapshot_id, path, version_number)
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_snapshot_versions_snapshot ON snapshot_versions(snapshot_id);
+
+                CREATE TABLE IF NOT EXISTS snapshot_tags (
+                    id INTEGER PRIMARY KEY,
+                    snapshot_id INTEGER NOT NULL REFERENCES snapshots(id) ON DELETE CASCADE,
+                    name TEXT NOT NULL,
+                    created_at INTEGER NOT NULL,
+                    UNIQUE(snapshot_id, name)
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_snapshot_tags_snapshot ON snapshot_tags(snapshot_id);
+
+                CREATE TABLE IF NOT EXISTS snapshot_file_tags (
+                    id INTEGER PRIMARY KEY,
+                    snapshot_id INTEGER NOT NULL REFERENCES snapshots(id) ON DELETE CASCADE,
+                    path TEXT NOT NULL,
+                    tag_name TEXT NOT NULL,
+                    created_at INTEGER NOT NULL,
+                    UNIQUE(snapshot_id, path, tag_name)
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_snapshot_file_tags_snapshot ON snapshot_file_tags(snapshot_id);
+
+                CREATE TABLE IF NOT EXISTS snapshot_metadata (
+                    id INTEGER PRIMARY KEY,
+                    snapshot_id INTEGER NOT NULL REFERENCES snapshots(id) ON DELETE CASCADE,
+                    path TEXT NOT NULL,
+                    key TEXT NOT NULL,
+                    value TEXT NOT NULL,
+                    modified_at INTEGER NOT NULL,
+                    UNIQUE(snapshot_id, path, key)
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_snapshot_metadata_snapshot ON snapshot_metadata(snapshot_id);
+
+                UPDATE settings SET value = '5' WHERE key = 'schema_version';
                 "#,
             )?;
         }
@@ -1302,6 +1407,10 @@ impl SqliteBackend {
                 SELECT COUNT(*) FROM files WHERE files.content_hash = contents.hash
             ) + (
                 SELECT COUNT(*) FROM file_versions WHERE file_versions.content_hash = contents.hash
+            ) + (
+                SELECT COUNT(*) FROM snapshot_files WHERE snapshot_files.content_hash = contents.hash
+            ) + (
+                SELECT COUNT(*) FROM snapshot_versions WHERE snapshot_versions.content_hash = contents.hash
             )",
             [],
         )?;
@@ -1659,6 +1768,41 @@ impl SqliteBackend {
             [snapshot_id],
         )?;
 
+        conn.execute(
+            "INSERT INTO snapshot_versions (snapshot_id, path, version_number, content_hash, size, created_at)
+             SELECT ?, p.path, fv.version_number, fv.content_hash, fv.size, fv.created_at
+             FROM file_versions fv
+             JOIN files f ON f.id = fv.file_id
+             JOIN paths p ON p.file_id = f.id",
+            [snapshot_id],
+        )?;
+
+        conn.execute(
+            "INSERT INTO snapshot_tags (snapshot_id, name, created_at)
+             SELECT ?, name, created_at
+             FROM tags",
+            [snapshot_id],
+        )?;
+
+        conn.execute(
+            "INSERT INTO snapshot_file_tags (snapshot_id, path, tag_name, created_at)
+             SELECT ?, p.path, t.name, ft.created_at
+             FROM file_tags ft
+             JOIN files f ON f.id = ft.file_id
+             JOIN paths p ON p.file_id = f.id
+             JOIN tags t ON t.id = ft.tag_id",
+            [snapshot_id],
+        )?;
+
+        conn.execute(
+            "INSERT INTO snapshot_metadata (snapshot_id, path, key, value, modified_at)
+             SELECT ?, p.path, fm.key, fm.value, fm.modified_at
+             FROM file_metadata fm
+             JOIN files f ON f.id = fm.file_id
+             JOIN paths p ON p.file_id = f.id",
+            [snapshot_id],
+        )?;
+
         Ok(SnapshotInfo {
             id: snapshot_id,
             name: name.to_string(),
@@ -1732,6 +1876,7 @@ impl SqliteBackend {
         // Delete all existing files and paths (except root)
         conn.execute("DELETE FROM paths WHERE path != '/'", [])?;
         conn.execute("DELETE FROM files WHERE id != 1", [])?;
+        conn.execute("DELETE FROM tags", [])?;
 
         // Also clear FTS index
         conn.execute("DELETE FROM fts_content", [])?;
@@ -1809,6 +1954,112 @@ impl SqliteBackend {
             } else {
                 dirs_restored += 1;
             }
+        }
+
+        let mut tag_stmt = conn.prepare(
+            "SELECT name, created_at
+             FROM snapshot_tags
+             WHERE snapshot_id = ?
+             ORDER BY name",
+        )?;
+
+        let tags: Vec<(String, i64)> = tag_stmt
+            .query_map([snapshot.id], |row| Ok((row.get(0)?, row.get(1)?)))?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        drop(tag_stmt);
+
+        for (name, created_at) in tags {
+            conn.execute(
+                "INSERT INTO tags (name, created_at) VALUES (?, ?)",
+                params![name, created_at],
+            )?;
+        }
+
+        let mut version_stmt = conn.prepare(
+            "SELECT path, version_number, content_hash, size, created_at
+             FROM snapshot_versions
+             WHERE snapshot_id = ?
+             ORDER BY path, version_number",
+        )?;
+
+        let versions: Vec<(String, i64, Vec<u8>, i64, i64)> = version_stmt
+            .query_map([snapshot.id], |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                ))
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        drop(version_stmt);
+
+        for (path, version_number, content_hash, size, created_at) in versions {
+            let file_id: i64 =
+                conn.query_row("SELECT file_id FROM paths WHERE path = ?", [&path], |row| {
+                    row.get(0)
+                })?;
+            conn.execute(
+                "INSERT INTO file_versions (file_id, version_number, content_hash, size, created_at)
+                 VALUES (?, ?, ?, ?, ?)",
+                params![file_id, version_number, content_hash, size, created_at],
+            )?;
+        }
+
+        let mut metadata_stmt = conn.prepare(
+            "SELECT path, key, value, modified_at
+             FROM snapshot_metadata
+             WHERE snapshot_id = ?
+             ORDER BY path, key",
+        )?;
+
+        let metadata_rows: Vec<(String, String, String, i64)> = metadata_stmt
+            .query_map([snapshot.id], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        drop(metadata_stmt);
+
+        for (path, key, value, modified_at) in metadata_rows {
+            let file_id: i64 =
+                conn.query_row("SELECT file_id FROM paths WHERE path = ?", [&path], |row| {
+                    row.get(0)
+                })?;
+            conn.execute(
+                "INSERT INTO file_metadata (file_id, key, value, created_at, modified_at)
+                 VALUES (?, ?, ?, ?, ?)",
+                params![file_id, key, value, modified_at, modified_at],
+            )?;
+        }
+
+        let mut file_tag_stmt = conn.prepare(
+            "SELECT path, tag_name, created_at
+             FROM snapshot_file_tags
+             WHERE snapshot_id = ?
+             ORDER BY path, tag_name",
+        )?;
+
+        let file_tag_rows: Vec<(String, String, i64)> = file_tag_stmt
+            .query_map([snapshot.id], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        drop(file_tag_stmt);
+
+        for (path, tag_name, created_at) in file_tag_rows {
+            let file_id: i64 =
+                conn.query_row("SELECT file_id FROM paths WHERE path = ?", [&path], |row| {
+                    row.get(0)
+                })?;
+            let tag_id: i64 =
+                conn.query_row("SELECT id FROM tags WHERE name = ?", [&tag_name], |row| {
+                    row.get(0)
+                })?;
+            conn.execute(
+                "INSERT INTO file_tags (file_id, tag_id, created_at) VALUES (?, ?, ?)",
+                params![file_id, tag_id, created_at],
+            )?;
         }
 
         drop(conn);

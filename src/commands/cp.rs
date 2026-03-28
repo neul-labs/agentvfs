@@ -40,23 +40,23 @@ pub fn run(args: CpArgs, output: &Output, vault: Option<String>) -> Result<()> {
     // Check if source is a directory and -r flag is needed
     let entry = fs.get_entry(&args.source)?;
     if entry.is_dir() && !args.recursive {
-        return Err(VfsError::NotAFile(
-            std::path::PathBuf::from(&args.source),
-        ));
+        return Err(VfsError::NotAFile(std::path::PathBuf::from(&args.source)));
     }
 
     // Calculate copy size for quota checking
-    let (copy_size, file_count) = if entry.is_dir() {
+    let (logical_size, file_count) = if entry.is_dir() {
         calculate_tree_size(&fs, &args.source)?
     } else {
         (entry.size as u64, 1usize)
     };
 
-    // Check quotas before copying
-    let quota_check = backend.check_quota(copy_size, file_count as u64)?;
+    // Copies reuse existing content blobs, so they only consume file-count quota.
+    let quota_check = backend.check_quota(0, file_count as u64)?;
     if !quota_check.allowed {
         return Err(VfsError::QuotaExceeded(
-            quota_check.reason.unwrap_or_else(|| "quota exceeded".to_string()),
+            quota_check
+                .reason
+                .unwrap_or_else(|| "quota exceeded".to_string()),
         ));
     }
 
@@ -66,7 +66,8 @@ pub fn run(args: CpArgs, output: &Output, vault: Option<String>) -> Result<()> {
     let details = serde_json::json!({
         "from": args.source,
         "to": args.destination,
-        "size": copy_size,
+        "logical_size": logical_size,
+        "storage_added": 0,
         "files": file_count
     });
     let _ = backend.log_operation("copy", Some(&args.destination), Some(&details.to_string()));

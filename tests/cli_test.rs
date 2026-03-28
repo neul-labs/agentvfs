@@ -2,7 +2,6 @@
 
 use assert_cmd::Command;
 use predicates::prelude::*;
-use std::fs;
 use tempfile::tempdir;
 
 /// Get a command for testing avfs
@@ -177,6 +176,49 @@ fn test_cp_and_mv() {
 }
 
 #[test]
+fn test_mv_directory_into_descendant_fails_without_corrupting_vault() {
+    let home = tempdir().unwrap();
+
+    avfs()
+        .env("HOME", home.path())
+        .args(["vault", "create", "test-vault"])
+        .assert()
+        .success();
+
+    avfs()
+        .env("HOME", home.path())
+        .args(["mkdir", "/a"])
+        .assert()
+        .success();
+
+    avfs()
+        .env("HOME", home.path())
+        .args(["mkdir", "/a/b"])
+        .assert()
+        .success();
+
+    avfs()
+        .env("HOME", home.path())
+        .args(["mv", "/a", "/a/b"])
+        .assert()
+        .failure();
+
+    avfs()
+        .env("HOME", home.path())
+        .args(["ls", "/"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("a"));
+
+    avfs()
+        .env("HOME", home.path())
+        .args(["ls", "/a"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("b"));
+}
+
+#[test]
 fn test_rm() {
     let home = tempdir().unwrap();
 
@@ -317,7 +359,11 @@ fn test_search() {
     // Write files with searchable content
     avfs()
         .env("HOME", home.path())
-        .args(["write", "/searchable.txt", "This contains unique searchterm"])
+        .args([
+            "write",
+            "/searchable.txt",
+            "This contains unique searchterm",
+        ])
         .assert()
         .success();
 
@@ -433,6 +479,67 @@ fn test_snapshot() {
 }
 
 #[test]
+fn test_snapshot_restore_preserves_tags_and_metadata() {
+    let home = tempdir().unwrap();
+
+    avfs()
+        .env("HOME", home.path())
+        .args(["vault", "create", "test-vault"])
+        .assert()
+        .success();
+
+    avfs()
+        .env("HOME", home.path())
+        .args(["write", "/snap.txt", "snapshot content"])
+        .assert()
+        .success();
+
+    avfs()
+        .env("HOME", home.path())
+        .args(["tag", "/snap.txt", "important"])
+        .assert()
+        .success();
+
+    avfs()
+        .env("HOME", home.path())
+        .args(["meta", "/snap.txt", "owner", "alice"])
+        .assert()
+        .success();
+
+    avfs()
+        .env("HOME", home.path())
+        .args(["snapshot", "save", "full-state"])
+        .assert()
+        .success();
+
+    avfs()
+        .env("HOME", home.path())
+        .args(["rm", "/snap.txt"])
+        .assert()
+        .success();
+
+    avfs()
+        .env("HOME", home.path())
+        .args(["snapshot", "restore", "full-state"])
+        .assert()
+        .success();
+
+    avfs()
+        .env("HOME", home.path())
+        .args(["tag", "--list", "/snap.txt"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("important"));
+
+    avfs()
+        .env("HOME", home.path())
+        .args(["meta", "/snap.txt"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("owner"));
+}
+
+#[test]
 fn test_stats() {
     let home = tempdir().unwrap();
 
@@ -457,4 +564,35 @@ fn test_stats() {
         .assert()
         .success()
         .stdout(predicate::str::contains("Files"));
+}
+
+#[test]
+fn test_quota_allows_deduplicated_copy() {
+    let home = tempdir().unwrap();
+    let data = vec![b'a'; 1024 * 1024];
+
+    avfs()
+        .env("HOME", home.path())
+        .args(["vault", "create", "test-vault"])
+        .assert()
+        .success();
+
+    avfs()
+        .env("HOME", home.path())
+        .args(["write", "/big.bin"])
+        .write_stdin(data)
+        .assert()
+        .success();
+
+    avfs()
+        .env("HOME", home.path())
+        .args(["quota", "set", "max_size_mb", "1"])
+        .assert()
+        .success();
+
+    avfs()
+        .env("HOME", home.path())
+        .args(["cp", "/big.bin", "/big-copy.bin"])
+        .assert()
+        .success();
 }

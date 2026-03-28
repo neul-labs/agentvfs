@@ -76,7 +76,6 @@ pub struct LmdbBackend {
     index: Index,
     index_writer: RwLock<IndexWriter>,
     index_reader: IndexReader,
-    schema: Schema,
     field_path: Field,
     field_content: Field,
 }
@@ -321,7 +320,6 @@ impl LmdbBackend {
             index,
             index_writer: RwLock::new(index_writer),
             index_reader,
-            schema,
             field_path,
             field_content,
         };
@@ -356,8 +354,11 @@ impl LmdbBackend {
             };
 
             let mut wtxn = self.env.write_txn()?;
-            self.db_files
-                .put(&mut wtxn, &root_id.to_be_bytes(), &serde_json::to_vec(&root)?)?;
+            self.db_files.put(
+                &mut wtxn,
+                &root_id.to_be_bytes(),
+                &serde_json::to_vec(&root)?,
+            )?;
             self.db_paths.put(&mut wtxn, b"/", &root_id.to_be_bytes())?;
 
             // Set created_at setting
@@ -457,7 +458,10 @@ impl LmdbBackend {
             DB_AUDIT => Ok(self.db_audit),
             DB_SETTINGS => Ok(self.db_settings),
             DB_COUNTERS => Ok(self.db_counters),
-            _ => Err(VfsError::Internal(format!("unknown collection: {}", collection))),
+            _ => Err(VfsError::Internal(format!(
+                "unknown collection: {}",
+                collection
+            ))),
         }
     }
 
@@ -534,6 +538,11 @@ impl LmdbBackend {
         Ok(children)
     }
 
+    /// Check whether a directory has any children.
+    pub fn has_children(&self, parent_id: i64) -> Result<bool> {
+        Ok(!self.list_children(parent_id)?.is_empty())
+    }
+
     /// Create a new file.
     pub fn create_file(
         &self,
@@ -561,8 +570,11 @@ impl LmdbBackend {
         };
 
         let mut wtxn = self.env.write_txn()?;
-        self.db_files
-            .put(&mut wtxn, &file_id.to_be_bytes(), &serde_json::to_vec(&entry)?)?;
+        self.db_files.put(
+            &mut wtxn,
+            &file_id.to_be_bytes(),
+            &serde_json::to_vec(&entry)?,
+        )?;
 
         // Update path cache
         let parent_path = self.get_path_for_id(parent_id)?;
@@ -606,8 +618,11 @@ impl LmdbBackend {
         stored.modified_at = Utc::now().timestamp();
 
         let mut wtxn = self.env.write_txn()?;
-        self.db_files
-            .put(&mut wtxn, &file_id.to_be_bytes(), &serde_json::to_vec(&stored)?)?;
+        self.db_files.put(
+            &mut wtxn,
+            &file_id.to_be_bytes(),
+            &serde_json::to_vec(&stored)?,
+        )?;
         wtxn.commit()?;
 
         // Increment new content ref
@@ -637,8 +652,11 @@ impl LmdbBackend {
         };
 
         let mut wtxn = self.env.write_txn()?;
-        self.db_files
-            .put(&mut wtxn, &dir_id.to_be_bytes(), &serde_json::to_vec(&entry)?)?;
+        self.db_files.put(
+            &mut wtxn,
+            &dir_id.to_be_bytes(),
+            &serde_json::to_vec(&entry)?,
+        )?;
 
         // Update path cache
         let parent_path = self.get_path_for_id(parent_id)?;
@@ -783,8 +801,11 @@ impl LmdbBackend {
 
                 let mut wtxn = self.env.write_txn()?;
                 self.db_paths.delete(&mut wtxn, old_child_path.as_bytes())?;
-                self.db_paths
-                    .put(&mut wtxn, new_child_path.as_bytes(), &child_id.to_be_bytes())?;
+                self.db_paths.put(
+                    &mut wtxn,
+                    new_child_path.as_bytes(),
+                    &child_id.to_be_bytes(),
+                )?;
                 wtxn.commit()?;
 
                 if child.file_type.is_dir() {
@@ -990,7 +1011,8 @@ impl LmdbBackend {
             }
         }
 
-        versions.sort_by(|a: &FileVersion, b: &FileVersion| b.version_number.cmp(&a.version_number));
+        versions
+            .sort_by(|a: &FileVersion, b: &FileVersion| b.version_number.cmp(&a.version_number));
         Ok(versions)
     }
 
@@ -1143,7 +1165,7 @@ impl LmdbBackend {
     }
 
     /// Remove a file from the search index.
-    fn remove_from_index(&self, path: &str) -> Result<()> {
+    pub fn remove_from_index(&self, path: &str) -> Result<()> {
         let mut writer = self.index_writer.write().unwrap();
         let term = tantivy::Term::from_field_text(self.field_path, path);
         writer.delete_term(term);
@@ -1243,8 +1265,11 @@ impl LmdbBackend {
         };
 
         let mut wtxn = self.env.write_txn()?;
-        self.db_tags
-            .put(&mut wtxn, &tag_id.to_be_bytes(), &serde_json::to_vec(&stored)?)?;
+        self.db_tags.put(
+            &mut wtxn,
+            &tag_id.to_be_bytes(),
+            &serde_json::to_vec(&stored)?,
+        )?;
 
         // Also store by name for quick lookup
         let name_key = format!("name:{}", name);
@@ -1346,8 +1371,11 @@ impl LmdbBackend {
             self.db_tags.delete(&mut wtxn, old_name_key.as_bytes())?;
 
             // Update tag entry
-            self.db_tags
-                .put(&mut wtxn, &tag_id.to_be_bytes(), &serde_json::to_vec(&stored)?)?;
+            self.db_tags.put(
+                &mut wtxn,
+                &tag_id.to_be_bytes(),
+                &serde_json::to_vec(&stored)?,
+            )?;
 
             // Add new name index
             let new_name_key = format!("name:{}", new_name);
@@ -1508,8 +1536,11 @@ impl LmdbBackend {
         };
 
         let mut wtxn = self.env.write_txn()?;
-        self.db_metadata
-            .put(&mut wtxn, meta_key.as_bytes(), &serde_json::to_vec(&stored)?)?;
+        self.db_metadata.put(
+            &mut wtxn,
+            meta_key.as_bytes(),
+            &serde_json::to_vec(&stored)?,
+        )?;
         wtxn.commit()?;
 
         Ok(())
@@ -1665,8 +1696,11 @@ impl LmdbBackend {
         let mut wtxn = self.env.write_txn()?;
         for (idx, sf) in snapshot_files {
             let file_key = format!("{}:{}", snapshot_id, idx);
-            self.db_snapshot_files
-                .put(&mut wtxn, file_key.as_bytes(), &serde_json::to_vec(&sf)?)?;
+            self.db_snapshot_files.put(
+                &mut wtxn,
+                file_key.as_bytes(),
+                &serde_json::to_vec(&sf)?,
+            )?;
         }
 
         // Create snapshot entry
@@ -1679,8 +1713,11 @@ impl LmdbBackend {
             description: description.map(|s| s.to_string()),
         };
 
-        self.db_snapshots
-            .put(&mut wtxn, &snapshot_id.to_be_bytes(), &serde_json::to_vec(&snapshot)?)?;
+        self.db_snapshots.put(
+            &mut wtxn,
+            &snapshot_id.to_be_bytes(),
+            &serde_json::to_vec(&snapshot)?,
+        )?;
         self.db_snapshots
             .put(&mut wtxn, name_key.as_bytes(), &snapshot_id.to_be_bytes())?;
 
@@ -1716,7 +1753,9 @@ impl LmdbBackend {
         let name_key = format!("name:{}", name);
         if let Some(id_bytes) = self.db_snapshots.get(&rtxn, name_key.as_bytes())? {
             let snapshot_id = i64::from_be_bytes(id_bytes.try_into().unwrap_or([0; 8]));
-            if let Some(snapshot_bytes) = self.db_snapshots.get(&rtxn, &snapshot_id.to_be_bytes())? {
+            if let Some(snapshot_bytes) =
+                self.db_snapshots.get(&rtxn, &snapshot_id.to_be_bytes())?
+            {
                 let stored: StoredSnapshot = serde_json::from_slice(snapshot_bytes)?;
                 return Ok(Some(stored.into()));
             }
@@ -1834,7 +1873,8 @@ impl LmdbBackend {
         }
 
         // Delete snapshot
-        self.db_snapshots.delete(&mut wtxn, &snapshot_id.to_be_bytes())?;
+        self.db_snapshots
+            .delete(&mut wtxn, &snapshot_id.to_be_bytes())?;
         self.db_snapshots.delete(&mut wtxn, name_key.as_bytes())?;
 
         wtxn.commit()?;
@@ -1984,7 +2024,8 @@ impl LmdbBackend {
     /// Set a setting value.
     pub fn set_setting(&self, key: &str, value: &str) -> Result<()> {
         let mut wtxn = self.env.write_txn()?;
-        self.db_settings.put(&mut wtxn, key.as_bytes(), value.as_bytes())?;
+        self.db_settings
+            .put(&mut wtxn, key.as_bytes(), value.as_bytes())?;
         wtxn.commit()?;
         Ok(())
     }
@@ -1994,7 +2035,12 @@ impl LmdbBackend {
     // =========================================================================
 
     /// Log an operation.
-    pub fn log_operation(&self, operation: &str, path: Option<&str>, details: Option<&str>) -> Result<()> {
+    pub fn log_operation(
+        &self,
+        operation: &str,
+        path: Option<&str>,
+        details: Option<&str>,
+    ) -> Result<()> {
         let audit_id = self.next_id(&self.next_audit_id);
         let now = Utc::now();
 
@@ -2007,8 +2053,11 @@ impl LmdbBackend {
         };
 
         let mut wtxn = self.env.write_txn()?;
-        self.db_audit
-            .put(&mut wtxn, &audit_id.to_be_bytes(), &serde_json::to_vec(&stored)?)?;
+        self.db_audit.put(
+            &mut wtxn,
+            &audit_id.to_be_bytes(),
+            &serde_json::to_vec(&stored)?,
+        )?;
         wtxn.commit()?;
 
         self.save_counters()?;
@@ -2285,7 +2334,8 @@ impl LmdbBackend {
         // Apply updates
         let mut wtxn = self.env.write_txn()?;
         for (key, stored) in updates {
-            self.db_contents.put(&mut wtxn, &key, &serde_json::to_vec(&stored)?)?;
+            self.db_contents
+                .put(&mut wtxn, &key, &serde_json::to_vec(&stored)?)?;
         }
         wtxn.commit()?;
 
@@ -2381,7 +2431,9 @@ mod tests {
         let hash = backend.write_content(content).unwrap();
 
         // Create file
-        let file_id = backend.create_file(1, "test.txt", hash, content.len() as u64).unwrap();
+        let _file_id = backend
+            .create_file(1, "test.txt", hash, content.len() as u64)
+            .unwrap();
 
         // Read back
         let entry = backend.get_entry_by_path("/test.txt").unwrap();
@@ -2401,18 +2453,26 @@ mod tests {
         // Create file with initial content
         let content1 = b"Version 1";
         let hash1 = backend.write_content(content1).unwrap();
-        let file_id = backend.create_file(1, "versioned.txt", hash1, content1.len() as u64).unwrap();
+        let file_id = backend
+            .create_file(1, "versioned.txt", hash1, content1.len() as u64)
+            .unwrap();
 
         // Create version 1
-        backend.create_version(file_id, hash1, content1.len() as u64).unwrap();
+        backend
+            .create_version(file_id, hash1, content1.len() as u64)
+            .unwrap();
 
         // Update file
         let content2 = b"Version 2";
         let hash2 = backend.write_content(content2).unwrap();
-        backend.update_file(file_id, hash2, content2.len() as u64).unwrap();
+        backend
+            .update_file(file_id, hash2, content2.len() as u64)
+            .unwrap();
 
         // Create version 2
-        backend.create_version(file_id, hash2, content2.len() as u64).unwrap();
+        backend
+            .create_version(file_id, hash2, content2.len() as u64)
+            .unwrap();
 
         // Check versions
         let versions = backend.get_file_versions(file_id).unwrap();

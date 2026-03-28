@@ -9,7 +9,7 @@ use serde::Serialize;
 use crate::commands::Output;
 use crate::error::Result;
 use crate::fs::{FileSystem, FileType};
-use crate::storage::SqliteBackend;
+use crate::storage::VaultBackend;
 use crate::vault::VaultManager;
 
 #[derive(Args)]
@@ -74,9 +74,10 @@ pub fn run(args: FindArgs, output: &Output, vault: Option<String>) -> Result<()>
     let fs = FileSystem::new(backend.clone());
 
     // Parse name pattern
-    let name_pattern = args.name.as_ref().map(|n| {
-        Pattern::new(n).unwrap_or_else(|_| Pattern::new("*").unwrap())
-    });
+    let name_pattern = args
+        .name
+        .as_ref()
+        .map(|n| Pattern::new(n).unwrap_or_else(|_| Pattern::new("*").unwrap()));
 
     // Parse file type filter
     let type_filter = args.file_type.as_ref().map(|t| match t.as_str() {
@@ -153,7 +154,7 @@ struct FindOptions {
 
 fn find_recursive(
     fs: &FileSystem,
-    backend: &Arc<SqliteBackend>,
+    backend: &Arc<VaultBackend>,
     path: &str,
     depth: usize,
     options: &FindOptions,

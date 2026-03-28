@@ -10,7 +10,7 @@ use serde::Serialize;
 use crate::commands::Output;
 use crate::error::{Result, VfsError};
 use crate::fs::FileSystem;
-use crate::storage::SqliteBackend;
+use crate::storage::VaultBackend;
 use crate::vault::VaultManager;
 
 #[derive(Args)]
@@ -190,7 +190,7 @@ fn calculate_import_size(
 
 fn import_file(
     vfs: &FileSystem,
-    backend: &Arc<SqliteBackend>,
+    backend: &Arc<VaultBackend>,
     real_path: &Path,
     vfs_path: &str,
     stats: &mut ImportStats,
@@ -219,7 +219,7 @@ fn import_file(
 
 fn import_recursive(
     vfs: &FileSystem,
-    backend: &Arc<SqliteBackend>,
+    backend: &Arc<VaultBackend>,
     real_path: &Path,
     vfs_path: &str,
     depth: usize,
