@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicI64, Ordering};
-use std::sync::RwLock;
+use std::sync::{Mutex, RwLock};
 
 use chrono::{DateTime, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
@@ -28,6 +28,14 @@ pub use super::{
 
 /// Tree names for different data types.
 const TREE_FILES: &str = "files";
+const TREE_FILE_INDEX: &str = "file_index"; // Secondary index: parent_id:name -> file_id
+
+/// Deferred index operation for batched Tantivy commits.
+#[derive(Debug)]
+enum IndexOp {
+    Add { path: String, content: String },
+    Remove { path: String },
+}
 const TREE_PATHS: &str = "paths";
 const TREE_CONTENTS: &str = "contents";
 const TREE_VERSIONS: &str = "versions";
@@ -62,6 +70,8 @@ pub struct SledBackend {
     index_reader: IndexReader,
     field_path: Field,
     field_content: Field,
+    // Deferred index operations for batched commits
+    pending_index_ops: Mutex<Vec<IndexOp>>,
 }
 
 /// Stored file entry in Sled (serializable version).
@@ -267,6 +277,7 @@ impl SledBackend {
             index_reader,
             field_path,
             field_content,
+            pending_index_ops: Mutex::new(Vec::new()),
         };
 
         backend.initialize()?;
@@ -407,16 +418,14 @@ impl SledBackend {
         }
     }
 
-    /// Get file ID by parent and name.
+    /// Get file ID by parent and name (O(1) lookup via secondary index).
     pub fn get_file_id(&self, parent_id: i64, name: &str) -> Result<Option<i64>> {
-        let files_tree = self.db.open_tree(TREE_FILES)?;
+        let index_tree = self.db.open_tree(TREE_FILE_INDEX)?;
+        let index_key = format!("{}:{}", parent_id, name);
 
-        for result in files_tree.iter() {
-            let (_, value) = result?;
-            let stored: StoredFileEntry = serde_json::from_slice(&value)?;
-            if stored.parent_id == Some(parent_id) && stored.name == name {
-                return Ok(Some(stored.id));
-            }
+        if let Some(value) = index_tree.get(index_key.as_bytes())? {
+            let id = i64::from_be_bytes(value.as_ref().try_into().unwrap_or([0; 8]));
+            return Ok(Some(id));
         }
         Ok(None)
     }
@@ -459,6 +468,7 @@ impl SledBackend {
     ) -> Result<i64> {
         let files_tree = self.db.open_tree(TREE_FILES)?;
         let paths_tree = self.db.open_tree(TREE_PATHS)?;
+        let index_tree = self.db.open_tree(TREE_FILE_INDEX)?;
 
         // Check if name already exists
         if self.name_exists(parent_id, name)? {
@@ -480,6 +490,10 @@ impl SledBackend {
 
         files_tree.insert(file_id.to_be_bytes(), serde_json::to_vec(&entry)?)?;
 
+        // Update secondary index
+        let index_key = format!("{}:{}", parent_id, name);
+        index_tree.insert(index_key.as_bytes(), &file_id.to_be_bytes())?;
+
         // Update path cache
         let parent_path = self.get_path_for_id(parent_id)?;
         let file_path = if parent_path == "/" {
@@ -491,9 +505,6 @@ impl SledBackend {
 
         // Increment content ref count
         self.increment_content_ref(&content_hash)?;
-
-        self.save_counters()?;
-        self.db.flush()?;
 
         Ok(file_id)
     }
@@ -522,7 +533,6 @@ impl SledBackend {
         // Increment new content ref
         self.increment_content_ref(&content_hash)?;
 
-        self.db.flush()?;
         Ok(())
     }
 
@@ -530,6 +540,7 @@ impl SledBackend {
     pub fn create_directory(&self, parent_id: i64, name: &str) -> Result<i64> {
         let files_tree = self.db.open_tree(TREE_FILES)?;
         let paths_tree = self.db.open_tree(TREE_PATHS)?;
+        let index_tree = self.db.open_tree(TREE_FILE_INDEX)?;
 
         // Check if name already exists
         if self.name_exists(parent_id, name)? {
@@ -551,6 +562,10 @@ impl SledBackend {
 
         files_tree.insert(dir_id.to_be_bytes(), serde_json::to_vec(&entry)?)?;
 
+        // Update secondary index
+        let index_key = format!("{}:{}", parent_id, name);
+        index_tree.insert(index_key.as_bytes(), &dir_id.to_be_bytes())?;
+
         // Update path cache
         let parent_path = self.get_path_for_id(parent_id)?;
         let dir_path = if parent_path == "/" {
@@ -560,9 +575,6 @@ impl SledBackend {
         };
         paths_tree.insert(dir_path.as_bytes(), &dir_id.to_be_bytes())?;
 
-        self.save_counters()?;
-        self.db.flush()?;
-
         Ok(dir_id)
     }
 
@@ -570,6 +582,7 @@ impl SledBackend {
     pub fn delete_entry(&self, id: i64, recursive: bool) -> Result<()> {
         let files_tree = self.db.open_tree(TREE_FILES)?;
         let paths_tree = self.db.open_tree(TREE_PATHS)?;
+        let index_tree = self.db.open_tree(TREE_FILE_INDEX)?;
 
         let entry_bytes = files_tree
             .get(id.to_be_bytes())?
@@ -599,6 +612,12 @@ impl SledBackend {
             self.decrement_content_ref(&hash)?;
         }
 
+        // Remove from secondary index
+        if let Some(parent_id) = stored.parent_id {
+            let index_key = format!("{}:{}", parent_id, stored.name);
+            index_tree.remove(index_key.as_bytes())?;
+        }
+
         // Remove from path cache
         let path = self.get_path_for_id(id)?;
         paths_tree.remove(path.as_bytes())?;
@@ -618,7 +637,6 @@ impl SledBackend {
         // Remove versions
         self.delete_all_versions(id)?;
 
-        self.db.flush()?;
         Ok(())
     }
 
@@ -626,6 +644,7 @@ impl SledBackend {
     pub fn move_entry(&self, id: i64, new_parent_id: i64, new_name: &str) -> Result<()> {
         let files_tree = self.db.open_tree(TREE_FILES)?;
         let paths_tree = self.db.open_tree(TREE_PATHS)?;
+        let index_tree = self.db.open_tree(TREE_FILE_INDEX)?;
 
         // Check if target name already exists
         if self.name_exists(new_parent_id, new_name)? {
@@ -638,6 +657,8 @@ impl SledBackend {
 
         let mut stored: StoredFileEntry = serde_json::from_slice(&entry_bytes)?;
         let old_path = self.get_path_for_id(id)?;
+        let old_parent_id = stored.parent_id;
+        let old_name = stored.name.clone();
 
         // Update entry
         stored.parent_id = Some(new_parent_id);
@@ -645,6 +666,14 @@ impl SledBackend {
         stored.modified_at = Utc::now().timestamp();
 
         files_tree.insert(id.to_be_bytes(), serde_json::to_vec(&stored)?)?;
+
+        // Update secondary index
+        if let Some(old_parent) = old_parent_id {
+            let old_index_key = format!("{}:{}", old_parent, old_name);
+            index_tree.remove(old_index_key.as_bytes())?;
+        }
+        let new_index_key = format!("{}:{}", new_parent_id, new_name);
+        index_tree.insert(new_index_key.as_bytes(), &id.to_be_bytes())?;
 
         // Update path cache
         paths_tree.remove(old_path.as_bytes())?;
@@ -673,7 +702,6 @@ impl SledBackend {
             self.update_child_paths(id, &old_path, &new_path)?;
         }
 
-        self.db.flush()?;
         Ok(())
     }
 
@@ -777,7 +805,6 @@ impl SledBackend {
         };
 
         contents_tree.insert(&hash, serde_json::to_vec(&stored)?)?;
-        self.db.flush()?;
 
         Ok(hash)
     }
@@ -855,9 +882,6 @@ impl SledBackend {
 
         // Increment content ref
         self.increment_content_ref(&content_hash)?;
-
-        self.save_counters()?;
-        self.db.flush()?;
 
         Ok(version_id)
     }
@@ -962,7 +986,6 @@ impl SledBackend {
             stats.versions_deleted += 1;
         }
 
-        self.db.flush()?;
         Ok(stats)
     }
 
@@ -995,38 +1018,75 @@ impl SledBackend {
             }
         }
 
-        self.db.flush()?;
         Ok(stats)
     }
 
     // =========================================================================
-    // Search Operations (Tantivy)
+    // Search Operations (Tantivy) - Deferred Indexing
     // =========================================================================
 
-    /// Index a file's content for full-text search.
-    pub fn index_file(&self, path: &str, content: &str) -> Result<()> {
+    /// Queue an index operation for deferred batch commit.
+    /// This is much faster than immediate commits for write-heavy workloads.
+    fn queue_index_update(&self, path: &str, content: Option<&str>) {
+        let mut pending = self.pending_index_ops.lock().unwrap();
+        match content {
+            Some(c) => pending.push(IndexOp::Add {
+                path: path.to_string(),
+                content: c.to_string(),
+            }),
+            None => pending.push(IndexOp::Remove {
+                path: path.to_string(),
+            }),
+        }
+
+        // Auto-flush if buffer exceeds threshold
+        if pending.len() >= 100 {
+            drop(pending);
+            let _ = self.flush_index_updates();
+        }
+    }
+
+    /// Flush all pending index operations in a single batch commit.
+    pub fn flush_index_updates(&self) -> Result<()> {
+        let ops: Vec<_> = {
+            let mut pending = self.pending_index_ops.lock().unwrap();
+            std::mem::take(&mut *pending)
+        };
+
+        if ops.is_empty() {
+            return Ok(());
+        }
+
         let mut writer = self.index_writer.write().unwrap();
-
-        // Remove any existing document for this path
-        let term = tantivy::Term::from_field_text(self.field_path, path);
-        writer.delete_term(term);
-
-        // Add new document
-        writer.add_document(doc!(
-            self.field_path => path,
-            self.field_content => content
-        ))?;
-
+        for op in ops {
+            match op {
+                IndexOp::Add { path, content } => {
+                    let term = tantivy::Term::from_field_text(self.field_path, &path);
+                    writer.delete_term(term);
+                    writer.add_document(doc!(
+                        self.field_path => path,
+                        self.field_content => content
+                    ))?;
+                }
+                IndexOp::Remove { path } => {
+                    let term = tantivy::Term::from_field_text(self.field_path, &path);
+                    writer.delete_term(term);
+                }
+            }
+        }
         writer.commit()?;
         Ok(())
     }
 
-    /// Remove a file from the search index.
+    /// Index a file's content for full-text search (deferred).
+    pub fn index_file(&self, path: &str, content: &str) -> Result<()> {
+        self.queue_index_update(path, Some(content));
+        Ok(())
+    }
+
+    /// Remove a file from the search index (deferred).
     pub fn remove_from_index(&self, path: &str) -> Result<()> {
-        let mut writer = self.index_writer.write().unwrap();
-        let term = tantivy::Term::from_field_text(self.field_path, path);
-        writer.delete_term(term);
-        writer.commit()?;
+        self.queue_index_update(path, None);
         Ok(())
     }
 
@@ -1067,6 +1127,12 @@ impl SledBackend {
 
     /// Rebuild the search index from all files.
     pub fn rebuild_search_index(&self) -> Result<u64> {
+        // Clear any pending index ops first
+        {
+            let mut pending = self.pending_index_ops.lock().unwrap();
+            pending.clear();
+        }
+
         let mut writer = self.index_writer.write().unwrap();
 
         // Clear existing index
@@ -1101,6 +1167,15 @@ impl SledBackend {
         Ok(indexed)
     }
 
+    /// Sync all pending operations to disk.
+    /// This flushes the deferred index updates and the database.
+    pub fn sync(&self) -> Result<()> {
+        self.flush_index_updates()?;
+        self.save_counters()?;
+        self.db.flush()?;
+        Ok(())
+    }
+
     // =========================================================================
     // Tag Operations
     // =========================================================================
@@ -1128,9 +1203,6 @@ impl SledBackend {
         // Also store by name for quick lookup
         let name_key = format!("name:{}", name);
         tags_tree.insert(name_key.as_bytes(), &tag_id.to_be_bytes())?;
-
-        self.save_counters()?;
-        self.db.flush()?;
 
         Ok(tag_id)
     }
@@ -1188,7 +1260,6 @@ impl SledBackend {
             file_tags_tree.remove(&key)?;
         }
 
-        self.db.flush()?;
         Ok(())
     }
 
@@ -1217,7 +1288,6 @@ impl SledBackend {
             tags_tree.insert(new_name_key.as_bytes(), &tag_id.to_be_bytes())?;
         }
 
-        self.db.flush()?;
         Ok(())
     }
 
@@ -1252,7 +1322,6 @@ impl SledBackend {
         let rev_key = format!("tag:{}:{}", tag_id, file_id);
         file_tags_tree.insert(rev_key.as_bytes(), &now.to_be_bytes())?;
 
-        self.db.flush()?;
         Ok(())
     }
 
@@ -1266,7 +1335,6 @@ impl SledBackend {
         let rev_key = format!("tag:{}:{}", tag_id, file_id);
         file_tags_tree.remove(rev_key.as_bytes())?;
 
-        self.db.flush()?;
         Ok(())
     }
 
@@ -1363,7 +1431,6 @@ impl SledBackend {
 
         metadata_tree.insert(meta_key.as_bytes(), serde_json::to_vec(&stored)?)?;
 
-        self.db.flush()?;
         Ok(())
     }
 
@@ -1408,7 +1475,6 @@ impl SledBackend {
         let meta_key = format!("{}:{}", file_id, key);
         metadata_tree.remove(meta_key.as_bytes())?;
 
-        self.db.flush()?;
         Ok(())
     }
 
@@ -1527,9 +1593,6 @@ impl SledBackend {
         snapshots_tree.insert(snapshot_id.to_be_bytes(), serde_json::to_vec(&snapshot)?)?;
         snapshots_tree.insert(name_key.as_bytes(), &snapshot_id.to_be_bytes())?;
 
-        self.save_counters()?;
-        self.db.flush()?;
-
         Ok(snapshot_id)
     }
 
@@ -1640,7 +1703,6 @@ impl SledBackend {
             }
         }
 
-        self.db.flush()?;
         Ok(stats)
     }
 
@@ -1671,7 +1733,6 @@ impl SledBackend {
         snapshots_tree.remove(snapshot_id.to_be_bytes())?;
         snapshots_tree.remove(name_key.as_bytes())?;
 
-        self.db.flush()?;
         Ok(())
     }
 
@@ -1699,7 +1760,6 @@ impl SledBackend {
         let quota_key = format!("quota:{}", key);
         settings_tree.insert(quota_key.as_bytes(), &value.to_be_bytes())?;
 
-        self.db.flush()?;
         Ok(())
     }
 
@@ -1710,7 +1770,6 @@ impl SledBackend {
         let quota_key = format!("quota:{}", key);
         settings_tree.remove(quota_key.as_bytes())?;
 
-        self.db.flush()?;
         Ok(())
     }
 
@@ -1818,7 +1877,6 @@ impl SledBackend {
     pub fn set_setting(&self, key: &str, value: &str) -> Result<()> {
         let settings_tree = self.db.open_tree(TREE_SETTINGS)?;
         settings_tree.insert(key.as_bytes(), value.as_bytes())?;
-        self.db.flush()?;
         Ok(())
     }
 
@@ -1847,9 +1905,6 @@ impl SledBackend {
         };
 
         audit_tree.insert(audit_id.to_be_bytes(), serde_json::to_vec(&stored)?)?;
-
-        self.save_counters()?;
-        self.db.flush()?;
 
         Ok(())
     }
@@ -1922,7 +1977,6 @@ impl SledBackend {
             audit_tree.remove(&key)?;
         }
 
-        self.db.flush()?;
         Ok(count)
     }
 
@@ -2047,7 +2101,6 @@ impl SledBackend {
             stats.bytes_freed += size;
         }
 
-        self.db.flush()?;
         Ok(stats)
     }
 
@@ -2095,8 +2148,22 @@ impl SledBackend {
             }
         }
 
-        self.db.flush()?;
         Ok(())
+    }
+}
+
+// =========================================================================
+// Drop Implementation - Ensure data is persisted on shutdown
+// =========================================================================
+
+impl Drop for SledBackend {
+    fn drop(&mut self) {
+        // Flush any pending index operations
+        let _ = self.flush_index_updates();
+        // Persist counters
+        let _ = self.save_counters();
+        // Flush to disk
+        let _ = self.db.flush();
     }
 }
 

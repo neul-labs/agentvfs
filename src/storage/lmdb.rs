@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicI64, Ordering};
-use std::sync::RwLock;
+use std::sync::{Mutex, RwLock};
 
 use chrono::{DateTime, TimeZone, Utc};
 use heed::types::Bytes;
@@ -30,6 +30,14 @@ pub use super::{
 
 /// Database names for different data types.
 const DB_FILES: &str = "files";
+const DB_FILE_INDEX: &str = "file_index"; // Secondary index: parent_id:name -> file_id
+
+/// Deferred index operation for batched Tantivy commits.
+#[derive(Debug)]
+enum IndexOp {
+    Add { path: String, content: String },
+    Remove { path: String },
+}
 const DB_PATHS: &str = "paths";
 const DB_CONTENTS: &str = "contents";
 const DB_VERSIONS: &str = "versions";
@@ -66,6 +74,7 @@ pub struct LmdbBackend {
     db_audit: Database<Bytes, Bytes>,
     db_settings: Database<Bytes, Bytes>,
     db_counters: Database<Bytes, Bytes>,
+    db_file_index: Database<Bytes, Bytes>, // Secondary index: parent_id:name -> file_id
     // ID counters
     next_file_id: AtomicI64,
     next_version_id: AtomicI64,
@@ -78,6 +87,8 @@ pub struct LmdbBackend {
     index_reader: IndexReader,
     field_path: Field,
     field_content: Field,
+    // Deferred index operations for batched commits
+    pending_index_ops: Mutex<Vec<IndexOp>>,
 }
 
 /// Stored file entry in LMDB (serializable version).
@@ -271,6 +282,7 @@ impl LmdbBackend {
         let db_audit = env.create_database(&mut wtxn, Some(DB_AUDIT))?;
         let db_settings = env.create_database(&mut wtxn, Some(DB_SETTINGS))?;
         let db_counters = env.create_database(&mut wtxn, Some(DB_COUNTERS))?;
+        let db_file_index = env.create_database(&mut wtxn, Some(DB_FILE_INDEX))?;
 
         wtxn.commit()?;
 
@@ -312,6 +324,7 @@ impl LmdbBackend {
             db_audit,
             db_settings,
             db_counters,
+            db_file_index,
             next_file_id: AtomicI64::new(1),
             next_version_id: AtomicI64::new(1),
             next_tag_id: AtomicI64::new(1),
@@ -322,6 +335,7 @@ impl LmdbBackend {
             index_reader,
             field_path,
             field_content,
+            pending_index_ops: Mutex::new(Vec::new()),
         };
 
         backend.initialize()?;
@@ -501,16 +515,14 @@ impl LmdbBackend {
         }
     }
 
-    /// Get file ID by parent and name.
+    /// Get file ID by parent and name (O(1) lookup via secondary index).
     pub fn get_file_id(&self, parent_id: i64, name: &str) -> Result<Option<i64>> {
         let rtxn = self.env.read_txn()?;
+        let index_key = format!("{}:{}", parent_id, name);
 
-        for result in self.db_files.iter(&rtxn)? {
-            let (_, value) = result?;
-            let stored: StoredFileEntry = serde_json::from_slice(value)?;
-            if stored.parent_id == Some(parent_id) && stored.name == name {
-                return Ok(Some(stored.id));
-            }
+        if let Some(value) = self.db_file_index.get(&rtxn, index_key.as_bytes())? {
+            let id = i64::from_be_bytes(value.try_into().unwrap_or([0; 8]));
+            return Ok(Some(id));
         }
         Ok(None)
     }
@@ -576,6 +588,11 @@ impl LmdbBackend {
             &serde_json::to_vec(&entry)?,
         )?;
 
+        // Update secondary index
+        let index_key = format!("{}:{}", parent_id, name);
+        self.db_file_index
+            .put(&mut wtxn, index_key.as_bytes(), &file_id.to_be_bytes())?;
+
         // Update path cache
         let parent_path = self.get_path_for_id(parent_id)?;
         let file_path = if parent_path == "/" {
@@ -590,8 +607,6 @@ impl LmdbBackend {
 
         // Increment content ref count
         self.increment_content_ref(&content_hash)?;
-
-        self.save_counters()?;
 
         Ok(file_id)
     }
@@ -658,6 +673,11 @@ impl LmdbBackend {
             &serde_json::to_vec(&entry)?,
         )?;
 
+        // Update secondary index
+        let index_key = format!("{}:{}", parent_id, name);
+        self.db_file_index
+            .put(&mut wtxn, index_key.as_bytes(), &dir_id.to_be_bytes())?;
+
         // Update path cache
         let parent_path = self.get_path_for_id(parent_id)?;
         let dir_path = if parent_path == "/" {
@@ -669,7 +689,6 @@ impl LmdbBackend {
             .put(&mut wtxn, dir_path.as_bytes(), &dir_id.to_be_bytes())?;
 
         wtxn.commit()?;
-        self.save_counters()?;
 
         Ok(dir_id)
     }
@@ -712,6 +731,12 @@ impl LmdbBackend {
         let mut wtxn = self.env.write_txn()?;
         self.db_paths.delete(&mut wtxn, path.as_bytes())?;
 
+        // Remove from secondary index
+        if let Some(parent_id) = stored.parent_id {
+            let index_key = format!("{}:{}", parent_id, stored.name);
+            self.db_file_index.delete(&mut wtxn, index_key.as_bytes())?;
+        }
+
         // Remove file entry
         self.db_files.delete(&mut wtxn, &id.to_be_bytes())?;
         wtxn.commit()?;
@@ -748,6 +773,8 @@ impl LmdbBackend {
         drop(rtxn);
 
         let old_path = self.get_path_for_id(id)?;
+        let old_parent_id = stored.parent_id;
+        let old_name = stored.name.clone();
 
         // Update entry
         stored.parent_id = Some(new_parent_id);
@@ -757,6 +784,15 @@ impl LmdbBackend {
         let mut wtxn = self.env.write_txn()?;
         self.db_files
             .put(&mut wtxn, &id.to_be_bytes(), &serde_json::to_vec(&stored)?)?;
+
+        // Update secondary index
+        if let Some(old_parent) = old_parent_id {
+            let old_index_key = format!("{}:{}", old_parent, old_name);
+            self.db_file_index.delete(&mut wtxn, old_index_key.as_bytes())?;
+        }
+        let new_index_key = format!("{}:{}", new_parent_id, new_name);
+        self.db_file_index
+            .put(&mut wtxn, new_index_key.as_bytes(), &id.to_be_bytes())?;
 
         // Update path cache
         self.db_paths.delete(&mut wtxn, old_path.as_bytes())?;
@@ -991,8 +1027,6 @@ impl LmdbBackend {
         // Increment content ref
         self.increment_content_ref(&content_hash)?;
 
-        self.save_counters()?;
-
         Ok(version_id)
     }
 
@@ -1143,33 +1177,71 @@ impl LmdbBackend {
     }
 
     // =========================================================================
-    // Search Operations (Tantivy)
+    // Search Operations (Tantivy) - Deferred Indexing
     // =========================================================================
 
-    /// Index a file's content for full-text search.
-    pub fn index_file(&self, path: &str, content: &str) -> Result<()> {
+    /// Queue an index operation for deferred batch commit.
+    /// This is much faster than immediate commits for write-heavy workloads.
+    fn queue_index_update(&self, path: &str, content: Option<&str>) {
+        let mut pending = self.pending_index_ops.lock().unwrap();
+        match content {
+            Some(c) => pending.push(IndexOp::Add {
+                path: path.to_string(),
+                content: c.to_string(),
+            }),
+            None => pending.push(IndexOp::Remove {
+                path: path.to_string(),
+            }),
+        }
+
+        // Auto-flush if buffer exceeds threshold
+        if pending.len() >= 100 {
+            drop(pending);
+            let _ = self.flush_index_updates();
+        }
+    }
+
+    /// Flush all pending index operations in a single batch commit.
+    pub fn flush_index_updates(&self) -> Result<()> {
+        let ops: Vec<_> = {
+            let mut pending = self.pending_index_ops.lock().unwrap();
+            std::mem::take(&mut *pending)
+        };
+
+        if ops.is_empty() {
+            return Ok(());
+        }
+
         let mut writer = self.index_writer.write().unwrap();
-
-        // Remove any existing document for this path
-        let term = tantivy::Term::from_field_text(self.field_path, path);
-        writer.delete_term(term);
-
-        // Add new document
-        writer.add_document(doc!(
-            self.field_path => path,
-            self.field_content => content
-        ))?;
-
+        for op in ops {
+            match op {
+                IndexOp::Add { path, content } => {
+                    let term = tantivy::Term::from_field_text(self.field_path, &path);
+                    writer.delete_term(term);
+                    writer.add_document(doc!(
+                        self.field_path => path,
+                        self.field_content => content
+                    ))?;
+                }
+                IndexOp::Remove { path } => {
+                    let term = tantivy::Term::from_field_text(self.field_path, &path);
+                    writer.delete_term(term);
+                }
+            }
+        }
         writer.commit()?;
         Ok(())
     }
 
-    /// Remove a file from the search index.
+    /// Index a file's content for full-text search (deferred).
+    pub fn index_file(&self, path: &str, content: &str) -> Result<()> {
+        self.queue_index_update(path, Some(content));
+        Ok(())
+    }
+
+    /// Remove a file from the search index (deferred).
     pub fn remove_from_index(&self, path: &str) -> Result<()> {
-        let mut writer = self.index_writer.write().unwrap();
-        let term = tantivy::Term::from_field_text(self.field_path, path);
-        writer.delete_term(term);
-        writer.commit()?;
+        self.queue_index_update(path, None);
         Ok(())
     }
 
@@ -1210,6 +1282,12 @@ impl LmdbBackend {
 
     /// Rebuild the search index from all files.
     pub fn rebuild_search_index(&self) -> Result<u64> {
+        // Clear any pending index ops first
+        {
+            let mut pending = self.pending_index_ops.lock().unwrap();
+            pending.clear();
+        }
+
         let mut writer = self.index_writer.write().unwrap();
 
         // Clear existing index
@@ -1242,6 +1320,16 @@ impl LmdbBackend {
 
         writer.commit()?;
         Ok(indexed)
+    }
+
+    /// Sync all pending operations to disk.
+    /// This flushes the deferred index updates and saves counters.
+    pub fn sync(&self) -> Result<()> {
+        self.flush_index_updates()?;
+        self.save_counters()?;
+        // LMDB automatically syncs on transaction commit, but we can force it
+        self.env.force_sync()?;
+        Ok(())
     }
 
     // =========================================================================
@@ -1277,7 +1365,6 @@ impl LmdbBackend {
             .put(&mut wtxn, name_key.as_bytes(), &tag_id.to_be_bytes())?;
 
         wtxn.commit()?;
-        self.save_counters()?;
 
         Ok(tag_id)
     }
@@ -1722,7 +1809,6 @@ impl LmdbBackend {
             .put(&mut wtxn, name_key.as_bytes(), &snapshot_id.to_be_bytes())?;
 
         wtxn.commit()?;
-        self.save_counters()?;
 
         Ok(snapshot_id)
     }
@@ -2060,8 +2146,6 @@ impl LmdbBackend {
         )?;
         wtxn.commit()?;
 
-        self.save_counters()?;
-
         Ok(())
     }
 
@@ -2340,6 +2424,21 @@ impl LmdbBackend {
         wtxn.commit()?;
 
         Ok(())
+    }
+}
+
+// =========================================================================
+// Drop Implementation - Ensure data is persisted on shutdown
+// =========================================================================
+
+impl Drop for LmdbBackend {
+    fn drop(&mut self) {
+        // Flush any pending index operations
+        let _ = self.flush_index_updates();
+        // Persist counters
+        let _ = self.save_counters();
+        // Force sync to disk
+        let _ = self.env.force_sync();
     }
 }
 

@@ -754,6 +754,18 @@ impl VaultBackend {
         }
     }
 
+    /// Sync all pending operations to disk.
+    /// For Sled/LMDB, this flushes deferred index updates and counters.
+    pub fn sync(&self) -> Result<()> {
+        match self {
+            Self::Sqlite(_) => Ok(()), // SQLite auto-syncs on each operation
+            #[cfg(feature = "sled-backend")]
+            Self::Sled(backend) => backend.sync(),
+            #[cfg(feature = "lmdb-backend")]
+            Self::Lmdb(backend) => backend.sync(),
+        }
+    }
+
     pub fn get_db_size(&self) -> Result<u64> {
         match self {
             Self::Sqlite(backend) => backend.get_db_size(),

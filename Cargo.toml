@@ -81,6 +81,14 @@ lmdb-backend = ["heed", "tantivy"]
 assert_cmd = "2.0"
 predicates = "3.0"
 assert_fs = "1.1"
+criterion = { version = "0.5", features = ["html_reports"] }
+rayon = "1.10"
+rand = { version = "0.8", features = ["small_rng"] }
+memory-stats = "1.2"
+
+[[bench]]
+name = "benchmarks"
+harness = false
 
 [[bin]]
 name = "avfs"
