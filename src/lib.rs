@@ -35,6 +35,7 @@ pub mod error;
 pub mod fs;
 #[cfg(feature = "fuse")]
 pub mod mount;
+pub mod runtime;
 pub mod shell;
 pub mod storage;
 pub mod vault;

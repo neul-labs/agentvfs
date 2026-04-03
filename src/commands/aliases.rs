@@ -34,8 +34,14 @@ const ALIAS_COMMANDS: &[&str] = &[
     "tag", "untag", "meta",
     "import", "export", "exec",
     "stats", "prune", "gc", "compact", "maintain",
-    "quota", "audit", "snapshot",
+    "quota", "audit", "snapshot", "checkpoint",
     "vault", "shell",
+    #[cfg(feature = "fuse")]
+    "mount",
+    #[cfg(feature = "fuse")]
+    "unmount",
+    #[cfg(feature = "fuse")]
+    "proxy",
 ];
 
 #[derive(Serialize)]

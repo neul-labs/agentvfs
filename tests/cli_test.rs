@@ -479,6 +479,36 @@ fn test_snapshot() {
 }
 
 #[test]
+fn test_checkpoint_alias() {
+    let home = tempdir().unwrap();
+
+    avfs()
+        .env("HOME", home.path())
+        .args(["vault", "create", "test-vault"])
+        .assert()
+        .success();
+
+    avfs()
+        .env("HOME", home.path())
+        .args(["write", "/checkpoint.txt", "checkpoint content"])
+        .assert()
+        .success();
+
+    avfs()
+        .env("HOME", home.path())
+        .args(["checkpoint", "save", "test-checkpoint"])
+        .assert()
+        .success();
+
+    avfs()
+        .env("HOME", home.path())
+        .args(["checkpoint", "list"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("test-checkpoint"));
+}
+
+#[test]
 fn test_snapshot_restore_preserves_tags_and_metadata() {
     let home = tempdir().unwrap();
 
@@ -537,6 +567,57 @@ fn test_snapshot_restore_preserves_tags_and_metadata() {
         .assert()
         .success()
         .stdout(predicate::str::contains("owner"));
+}
+
+#[test]
+fn test_vault_fork_clones_contents() {
+    let home = tempdir().unwrap();
+
+    avfs()
+        .env("HOME", home.path())
+        .args(["vault", "create", "source-vault"])
+        .assert()
+        .success();
+
+    avfs()
+        .env("HOME", home.path())
+        .args(["write", "/forked.txt", "fork me"])
+        .assert()
+        .success();
+
+    avfs()
+        .env("HOME", home.path())
+        .args(["vault", "fork", "source-vault", "fork-vault", "--use"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Forked vault"));
+
+    avfs()
+        .env("HOME", home.path())
+        .args(["cat", "/forked.txt"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("fork me"));
+
+    avfs()
+        .env("HOME", home.path())
+        .args(["write", "/forked.txt", "fork changed"])
+        .assert()
+        .success();
+
+    avfs()
+        .env("HOME", home.path())
+        .args(["vault", "use", "source-vault"])
+        .assert()
+        .success();
+
+    avfs()
+        .env("HOME", home.path())
+        .args(["cat", "/forked.txt"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("fork me"))
+        .stdout(predicate::str::contains("fork changed").not());
 }
 
 #[test]

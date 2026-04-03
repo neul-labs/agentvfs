@@ -1,224 +1,136 @@
 # Vault Management
 
-A **vault** is an independent virtual filesystem stored in a single database file (`.avfs` extension). VFS supports multiple vaults, allowing you to organize different projects, experiments, or backups in isolated containers.
+Vaults are the durable workspace roots in agentvfs.
 
-## What is a Vault?
+The intended model is:
 
-- A complete virtual filesystem in one `.avfs` file
-- Contains files, directories, versions, tags, and metadata
-- Fully isolated from other vaults
-- Portable - copy the file to move your filesystem
+- a project has a long-lived vault
+- each task gets a cheap fork of that vault
+- risky work inside that fork is protected by checkpoints
 
-### Default Storage Location
+## What a Vault Contains
 
-```
+A vault stores:
+
+- files and directories
+- version history
+- metadata and tags
+- checkpoints and snapshots
+- audit history
+
+By default vaults live under:
+
+```text
 ~/.avfs/
-├── config.toml          # Global avfs configuration
-├── current              # Name of the active vault
+├── current
 └── vaults/
-    ├── default.avfs       # The default vault
-    ├── myproject.avfs     # User-created vault
-    └── experiments.avfs   # Another vault
+    ├── myproject.avfs
+    └── experiments.avfs
 ```
 
-## Creating Vaults
-
-### Basic Creation
+## Create a Vault
 
 ```bash
-avfs vault create <name>
+avfs vault create myproject
 ```
 
-Creates a new vault in the default location (`~/.avfs/vaults/<name>.avfs`).
+Create with a specific backend:
 
 ```bash
-$ avfs vault create myproject
-Created vault 'myproject' at ~/.avfs/vaults/myproject.avfs
-Switched to vault 'myproject'
+avfs vault create myproject --backend sqlite
 ```
 
-### Custom Location
-
-Store the vault database at a custom location:
+## List and Select Vaults
 
 ```bash
-# External drive
-avfs vault create backup --path /mnt/external/backup.avfs
-
-# Project directory
-avfs vault create project-files --path ./project.avfs
-```
-
-## Listing Vaults
-
-```bash
-$ avfs vault list
-  VAULT          SIZE      FILES    VERSIONS   PATH
-* default        12.3 MB   234      1,892      ~/.avfs/vaults/default.avfs
-  myproject      4.5 MB    89       456        ~/.avfs/vaults/myproject.avfs
-  experiments    128 KB    12       24         ~/.avfs/vaults/experiments.avfs
-
-* = active vault
-```
-
-### JSON Output
-
-```bash
-avfs vault list --json
-```
-
-## Switching Vaults
-
-```bash
-avfs vault use <name>
-```
-
-Switch to a different vault:
-
-```bash
-$ avfs vault use myproject
-Switched to vault 'myproject'
-```
-
-### Temporary Vault Override
-
-Use `--vault` flag with any command to temporarily use a different vault:
-
-```bash
-# List files in another vault without switching
-avfs --vault backup ls /documents
-
-# Copy between vaults
-avfs cat /file.txt | avfs --vault backup write /file.txt
-```
-
-## Vault Information
-
-```bash
-avfs vault info [name]
-```
-
-Show detailed information about a vault:
-
-```bash
-$ avfs vault info myproject
-Vault: myproject
-Path: ~/.avfs/vaults/myproject.avfs
-Size: 4.5 MB
-
-Statistics:
-  Files: 89
-  Directories: 23
-  Total versions: 456
-  Content blobs: 312
-
-Created: 2024-01-15 10:30:00
-Last modified: 2024-03-10 14:22:15
-```
-
-## Deleting Vaults
-
-```bash
-avfs vault delete <name>
-```
-
-Delete a vault permanently:
-
-```bash
-$ avfs vault delete experiments
-This will permanently delete vault 'experiments' and all its contents.
-Are you sure? [y/N] y
-Deleted vault 'experiments'
-```
-
-### Force Delete
-
-Skip confirmation prompt:
-
-```bash
-avfs vault delete experiments --force
-```
-
-!!! warning "Cannot Delete Active Vault"
-    You cannot delete the currently active vault. Switch to another vault first.
-
-## Backup and Restore
-
-### Backup a Vault
-
-Since a vault is a single SQLite file, backup is simple:
-
-```bash
-# Copy the database file
-cp ~/.avfs/vaults/myproject.avfs ~/backups/myproject-$(date +%Y%m%d).avfs
-```
-
-### Online Backup
-
-For backing up while VFS is in use:
-
-```bash
-sqlite3 ~/.avfs/vaults/myproject.avfs ".backup ~/backups/myproject.avfs"
-```
-
-### Restore from Backup
-
-```bash
-# Copy backup to vaults directory
-cp ~/backups/myproject-backup.avfs ~/.avfs/vaults/restored.avfs
-avfs vault use restored
-```
-
-## Vault Portability
-
-### Moving Vaults Between Machines
-
-1. Copy the `.avfs` file to the target machine
-2. Place it in `~/.avfs/vaults/` or use a custom path
-
-```bash
-# On source machine
-scp ~/.avfs/vaults/myproject.avfs user@target:~/.avfs/vaults/
-
-# On target machine
+avfs vault list
 avfs vault use myproject
+avfs vault info myproject
 ```
 
-### Cloud Sync
-
-Vault files can be synced via cloud storage:
+Use `--vault` with other commands to target a vault without switching the global current selection.
 
 ```bash
-# Store vault in Dropbox
-avfs vault create shared --path ~/Dropbox/avfs/shared.avfs
+avfs --vault myproject ls /
 ```
 
-!!! warning "Concurrent Access"
-    SQLite databases shouldn't be accessed concurrently from multiple machines.
-    Use proper locking or sync only when not in use.
+## Fork a Vault
 
-## Troubleshooting
-
-### Vault Locked
-
-```
-Error: Vault is locked by another process
-```
-
-Another VFS instance is using the vault. Check for:
-
-- Other terminal sessions
-- Background VFS processes
-- Stale lock files
-
-### Corrupt Vault
-
-If a vault becomes corrupted:
+Forks are the key workspace primitive for agent tasks.
 
 ```bash
-# Check integrity
-sqlite3 ~/.avfs/vaults/damaged.avfs "PRAGMA integrity_check"
-
-# Attempt recovery
-sqlite3 ~/.avfs/vaults/damaged.avfs ".recover" | sqlite3 recovered.avfs
+avfs vault fork myproject myproject-task-1 --use
 ```
+
+This creates a new workspace derived from `myproject` and switches to it.
+
+### Why Forks Matter
+
+Forks let you:
+
+- isolate one task from another
+- keep a durable project root clean
+- create short-lived workspaces cheaply
+- checkpoint and discard risky experiments safely
+
+### Recommended Pattern
+
+For agent work, prefer:
+
+1. durable root vault
+2. task-specific fork
+3. checkpoint inside the fork
+4. mounted execution against the fork
+
+## Checkpoints Inside a Vault or Fork
+
+Use checkpoints before risky work:
+
+```bash
+avfs checkpoint save before-refactor
+avfs checkpoint restore before-refactor
+avfs checkpoint list
+```
+
+The `snapshot` commands remain available as the underlying implementation surface.
+
+## Delete a Vault
+
+```bash
+avfs vault delete old-workspace -y
+```
+
+Deletion removes the selected vault backing store. Be careful not to delete durable project roots when you only meant to discard a short-lived task fork.
+
+## Durability and Portability
+
+Vaults are portable because the backing store is local and self-contained.
+
+This makes them useful for:
+
+- backing up workspaces
+- moving agent state between machines
+- preserving a durable root while throwing away short-lived forks
+
+## How Vaults Relate to the Proxy Boundary
+
+Vaults are not the whole product surface. They are the durable storage layer behind the proxy boundary.
+
+The intended execution path is:
+
+```text
+agent -> proxy boundary -> mounted fork -> cli tools
+```
+
+From that perspective:
+
+- the vault is the root
+- the fork is the task workspace
+- the mount is the tool-facing path
+- the proxy is the execution boundary
+
+## Related Guides
+
+- [Quick Start](../getting-started/quickstart.md)
+- [Proxy Boundary](../advanced/proxy-boundary.md)
+- [Agent Integration](../advanced/agent-integration.md)

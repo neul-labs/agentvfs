@@ -1,295 +1,230 @@
-# vfs Roadmap
+# agentvfs Roadmap
 
-## Project Status: Core Implementation Complete (Phases 1-7)
+This roadmap reflects the current strategic direction for agentvfs: a workspace runtime with a cheap proxy boundary between the agent, the shell, and the mounted filesystem.
 
-This document outlines the implementation roadmap for vfs, a virtual filesystem CLI backed by embedded databases.
+## Outcome View
 
----
+The intended operating model is:
 
-## Phase 1: Core Foundation
-
-**Goal:** Minimal viable filesystem with SQLite backend
-
-### 1.1 Project Setup
-- [x] Initialize Rust project with Cargo
-- [x] Set up project structure (src/lib.rs, src/main.rs, src/commands/, src/storage/)
-- [x] Add dependencies: clap, rusqlite, serde, sha2, thiserror
-- [x] Set up error types and Result aliases
-
-### 1.2 Storage Backend Trait
-- [x] Define `StorageBackend` trait (get, put, delete, scan, transaction)
-- [x] Define `SearchBackend` trait (index, search, remove)
-- [x] Implement SQLite backend
-- [x] Implement SQLite FTS5 search backend
-
-### 1.3 Core Data Structures
-- [x] FileEntry, ContentBlob, VersionEntry structs
-- [x] Serialization with bincode/serde
-- [x] Path normalization utilities
-- [x] SHA-256 content hashing
-
-### 1.4 Vault Management
-- [x] `vfs vault create` - create new vault
-- [x] `vfs vault list` - list vaults
-- [x] `vfs vault use` - switch active vault
-- [x] `vfs vault delete` - delete vault
-- [x] `vfs vault info` - show vault info
-- [x] Global config file (~/.vfs/config.toml)
-
-### 1.5 Basic File Operations
-- [x] `vfs ls` - list directory
-- [x] `vfs mkdir` - create directory
-- [x] `vfs rmdir` - remove empty directory
-- [x] `vfs touch` - create empty file
-- [x] `vfs write` - write content to file
-- [x] `vfs cat` - read file content
-- [x] `vfs cp` - copy file/directory
-- [x] `vfs mv` - move/rename file
-- [x] `vfs rm` - remove file/directory
-- [x] `vfs pwd` - print working directory
-- [x] `vfs cd` - change directory
-- [x] `vfs tree` - display tree
-
----
-
-## Phase 2: Versioning & Search
-
-**Goal:** Automatic versioning and content search
-
-### 2.1 Automatic Versioning
-- [x] Create version on every write
-- [x] `vfs log` - show version history
-- [x] `vfs cat -v <N>` - read specific version
-- [x] `vfs checkout` - restore version
-- [x] `vfs revert` - revert to previous
-- [x] `vfs diff` - compare files/versions
-
-### 2.2 Search
-- [x] FTS5 index management
-- [x] `vfs search` - full-text search
-- [x] `vfs grep` - regex content search
-- [x] `vfs find` - find by name/attributes
-
----
-
-## Phase 3: Metadata & Tags
-
-**Goal:** Rich file organization
-
-### 3.1 Tags
-- [x] `vfs tag` - add tags to files
-- [x] `vfs untag` - remove tags
-- [x] `vfs tag --list` - list all tags
-- [x] `vfs tag --create/--delete/--rename`
-- [x] `vfs find -tag` - find by tag
-
-### 3.2 Custom Metadata
-- [x] `vfs meta` - get/set metadata
-- [x] `vfs meta --export/--import`
-- [x] `vfs find -meta` - find by metadata
-
----
-
-## Phase 4: Import/Export & External Commands
-
-**Goal:** Bridge to real filesystem
-
-### 4.1 Import/Export
-- [x] `vfs import` - import from real filesystem
-- [x] `vfs export` - export to real filesystem
-- [x] Recursive import/export
-
-### 4.2 External Commands
-- [x] `vfs exec` - run command on virtual file
-- [x] Temp file extraction and re-import
-- [x] Glob pattern support
-- [x] Pipe support (`vfs cat | cmd | vfs write`)
-
----
-
-## Phase 5: Maintenance
-
-**Goal:** Storage management and optimization
-
-### 5.1 Pruning
-- [x] `vfs prune --keep <N>` - keep last N versions
-- [x] `vfs prune --older-than <DAYS>` - time-based
-- [x] `vfs prune --max-size <MB>` - size-based
-- [x] `vfs vault config` - configure prune defaults
-
-### 5.2 Garbage Collection & Compaction
-- [x] `vfs gc` - remove orphaned blobs
-- [x] `vfs compact` - reclaim space (VACUUM)
-- [x] `vfs maintain` - full maintenance routine
-- [x] `vfs vault stats` - storage statistics
-
----
-
-## Phase 6: Agent Integration
-
-**Goal:** AI agent sandbox support
-
-### 6.1 JSON Output
-- [x] `--json` flag on all commands
-- [x] Consistent JSON error format
-- [x] Structured output for parsing
-
-### 6.2 Snapshots
-- [x] `vfs snapshot save` - save vault state
-- [x] `vfs snapshot list` - list snapshots
-- [x] `vfs snapshot restore` - restore state
-- [x] `vfs snapshot delete` - delete snapshot
-
-### 6.3 Quotas
-- [x] `max_size_mb` limit
-- [x] `max_files` limit
-- [x] `max_file_size_mb` limit
-- [x] Quota enforcement on write operations
-
-### 6.4 Audit Log
-- [x] Log all operations to vault
-- [x] `vfs audit` - view operation history
-- [x] `vfs audit clear` - clear log
-- [x] Auto-rotation at max entries
-
----
-
-## Phase 7: Interactive Shell
-
-**Goal:** REPL experience
-
-- [x] `vfs shell` - launch interactive mode
-- [x] Command parsing without `vfs` prefix
-- [x] Custom prompt with vault/path
-- [x] Tab completion (rustyline)
-- [x] Command history
-- [x] `vfs aliases` - generate shell aliases
-
----
-
-## Phase 8: Additional Backends
-
-**Goal:** Pluggable storage options
-
-### 8.1 Sled Backend
-- [x] Implement `StorageBackend` for Sled
-- [x] Tantivy search integration
-
-### 8.2 LMDB Backend
-- [x] Implement `StorageBackend` for LMDB
-- [x] Tantivy search integration
-
-### 8.3 RocksDB Backend
-- [ ] Implement `StorageBackend` for RocksDB
-- [ ] Tantivy search integration
-
-### 8.4 Backend Migration
-- [ ] `vfs vault migrate --to <backend>`
-- [ ] Data verification after migration
-
----
-
-## Phase 9: Polish & Distribution
-
-**Goal:** Production-ready release
-
-### 9.1 Testing
-- [x] Unit tests for all commands
-- [x] Integration tests
-- [ ] Fuzzing for parser/storage
-- [ ] Benchmark suite
-
-### 9.2 Documentation
-- [x] README.md
-- [x] docs/*.md (all documentation)
-- [x] Man pages
-- [x] `--help` text for all commands
-
-### 9.3 Distribution
-- [ ] Publish to crates.io
-- [x] GitHub releases with binaries
-- [ ] Homebrew formula
-- [ ] AUR package
-
----
-
-## Future Considerations (Not Planned)
-
-These are explicitly out of scope for initial release:
-
-| Feature | Reason |
-|---------|--------|
-| REST API | CLI + JSON is sufficient for agents |
-| Permissions/ACL | Overkill for single-agent use |
-| Multi-agent workspaces | Premature; one vault per agent works |
-| FUSE mount | Heavy dependency |
-| Encryption at rest | Can add later |
-| Network sync | Complex; use file copy for now |
-
----
-
-## Implementation Notes
-
-### Recommended Crates
-
-| Purpose | Crate |
-|---------|-------|
-| CLI parsing | clap |
-| SQLite | rusqlite |
-| Sled | sled |
-| LMDB | heed |
-| RocksDB | rocksdb |
-| Serialization | serde, bincode |
-| Hashing | sha2 |
-| Regex | regex |
-| Full-text search | tantivy |
-| REPL | rustyline |
-| Error handling | thiserror, anyhow |
-| JSON | serde_json |
-| Time | chrono |
-| Glob patterns | glob |
-
-### Project Structure
-
-```
-vfs/
-├── Cargo.toml
-├── src/
-│   ├── main.rs              # CLI entry point
-│   ├── lib.rs               # Library root
-│   ├── error.rs             # Error types
-│   ├── commands/
-│   │   ├── mod.rs
-│   │   ├── ls.rs
-│   │   ├── cat.rs
-│   │   ├── write.rs
-│   │   └── ...
-│   ├── storage/
-│   │   ├── mod.rs
-│   │   ├── backend.rs       # Trait definitions
-│   │   ├── sqlite.rs
-│   │   ├── sled.rs
-│   │   └── ...
-│   ├── vault/
-│   │   ├── mod.rs
-│   │   ├── config.rs
-│   │   └── snapshot.rs
-│   └── shell/
-│       ├── mod.rs
-│       └── repl.rs
-└── tests/
-    ├── integration/
-    └── fixtures/
+```text
+agent -> proxy boundary -> mounted forked workspace -> cli tools
 ```
 
----
+In that model:
 
-## Success Metrics
+- **vaults** hold durable project state
+- **forks** create cheap task workspaces
+- **checkpoints** provide rollback inside a task workspace
+- **mounts** provide a real directory view for tools
+- **proxy execution** becomes the main agent-facing runtime boundary
 
-- [x] All commands work as documented
-- [x] JSON output parseable by Python/JS
-- [x] Snapshots save/restore correctly
-- [x] Quotas prevent runaway usage
-- [ ] Backend migration preserves all data
-- [x] Interactive shell is responsive
-- [x] No data loss under any circumstance
+## Current State
+
+Implemented foundation:
+
+- [x] durable vault storage
+- [x] file operations, search, metadata, and versioning
+- [x] checkpoints / snapshots
+- [x] audit and quota support
+- [x] interactive shell and JSON output
+- [x] FUSE mount support
+- [x] `vault fork`
+- [x] initial `proxy` command surface
+- [x] runtime service split under `src/runtime/`
+
+The architecture now needs to pivot from "filesystem first, execution second" to "proxy boundary first, filesystem runtime underneath".
+
+## Runtime Refactor Plan
+
+The next phase is no longer just a proposal. The first runtime split is in place, and the remaining work is to harden and extend it without collapsing the abstraction boundaries again.
+
+### Refactor Goals
+
+- move runtime orchestration out of CLI command handlers
+- avoid CLI-to-CLI subprocess boundaries inside the proxy path
+- keep policy, workspace lifecycle, execution, and storage concerns separate
+- make mounts and forks reusable runtime objects rather than ad hoc command behavior
+- keep backend-specific storage details below the execution boundary
+
+### Target Runtime Services
+
+The intended internal split is now mostly implemented:
+
+- **PolicyEngine**
+  - classify a top-level command
+  - return `allow`, `allow_with_checkpoint`, `deny`, or `require_approval`
+- **WorkspaceService**
+  - resolve current vault
+  - create/select task forks
+  - manage ephemeral workspace lifecycle
+- **CheckpointService**
+  - create, restore, list, and delete rollback points
+- **MountSession**
+  - own mount/unmount lifecycle for a workspace
+  - expose a ready mountpoint to the executor
+- **ChangeSummary**
+  - summarize which files changed after execution
+- **ProxyRuntime**
+  - orchestrate policy, workspace selection, checkpoints, mounts, execution, and reporting
+
+`CommandExecutor` is still a logical responsibility rather than its own extracted type. Execution is currently performed inside `ProxyRuntime` and can be split later if the boundary starts growing too much.
+
+### Abstraction Rules
+
+The following boundaries should hold:
+
+- CLI command modules should stay thin and mostly parse args, call services, and print output
+- `proxy` should use a library-level mount session, not spawn `avfs mount` as a subprocess
+- fork lifecycle should not remain mixed into general vault CRUD forever
+- policy logic should not live inside storage backends
+- changed-file reporting should be a runtime/reporting concern, not a side effect buried in command handlers
+
+### Performance Rules
+
+- classify commands before doing expensive fork or mount work when possible
+- keep the proxy path free of avoidable subprocess hops
+- make mount readiness explicit rather than inferred from directory existence
+- design mount sessions so they can be reused later across multiple top-level commands
+- keep fork creation cheap and backend-aware
+- avoid global scans for change reporting when a scoped or incremental summary is available
+
+### Staged Refactor Sequence
+
+#### Stage 1. Extract Mount Runtime
+
+- [x] introduce `MountSession` as a library abstraction
+- [x] move mount lifecycle out of `proxy` command logic
+- [x] remove proxy dependence on spawning `avfs mount`
+- [ ] make mount readiness explicit and reusable across longer-lived sessions
+
+#### Stage 2. Extract Execution Types
+
+- [x] define `ExecutionRequest`
+- [x] define `ExecutionDecision`
+- [x] define `ExecutionResult`
+- [ ] finalize a stable external JSON contract for proxy execution
+
+#### Stage 3. Split Workspace Lifecycle from Vault CRUD
+
+- [x] introduce `WorkspaceService`
+- [x] move task-fork lifecycle out of general vault management
+- [ ] support ephemeral fork creation and cleanup
+
+#### Stage 4. Isolate Policy
+
+- [x] introduce `PolicyEngine` with no filesystem side effects
+- [x] move command classification out of CLI handlers
+- [x] connect policy decisions to checkpoint behavior
+
+#### Stage 5. Build ProxyRuntime
+
+- [x] orchestrate policy, workspace selection, checkpoints, mounts, execution, and summaries in one library runtime
+- [x] keep `proxy` CLI as a thin adapter over `ProxyRuntime`
+- [ ] prepare for later session reuse and richer reporting
+
+## Near-Term Priority
+
+### 1. Make Proxy the Main Execution Surface
+
+Goal:
+
+- turn `proxy` into the top-level shell execution boundary for agents
+
+Work:
+
+- [ ] define `proxy exec` as the main entrypoint rather than an initial proxy surface
+- [x] accept both argv-style and shell-style command input
+- [x] return structured execution results
+- [x] make the proxy responsible for mount lifecycle
+
+### 2. Add Top-Level Command Policy
+
+Goal:
+
+- classify and decide on the command the agent requested
+
+Work:
+
+- [x] classify commands as read-only, mutating, destructive, networked, or host-escape-risk
+- [x] support `allow`, `allow_with_checkpoint`, `deny`, and `require_approval`
+- [x] record policy decisions in audit output
+
+### 3. Treat Forks as Task Workspaces
+
+Goal:
+
+- make forks the default unit of agent work
+
+Work:
+
+- [ ] support ephemeral per-task forks
+- [ ] add better lifecycle for short-lived forks
+- [ ] improve visibility into fork ancestry and usage
+
+### 4. Make Checkpoints a First-Class Recovery Tool
+
+Goal:
+
+- create rollback points automatically around risky commands
+
+Work:
+
+- [x] auto-checkpoint before mutating or risky proxy executions
+- [ ] add clearer restore and discard flows
+- [ ] surface checkpoints in agent-oriented output
+
+### 5. Summarize What Changed
+
+Goal:
+
+- make every proxy execution easy to inspect
+
+Work:
+
+- [x] changed-files summary after execution
+- [ ] better diff integration for top-level command runs
+- [x] execution duration and exit metadata in structured output
+
+## Medium-Term Work
+
+### Storage and Runtime
+
+- [ ] backend migration support
+- [ ] improved fork performance and lifecycle management
+- [ ] stronger runtime cleanup for stale mounts and abandoned workspaces
+
+### Agent Integration
+
+- [ ] define a stable JSON contract for proxy execution
+- [ ] document approval and policy workflows
+- [ ] make direct low-level CLI orchestration optional rather than the default agent model
+
+### Developer Experience
+
+- [ ] tighten command reference around shipped behavior
+- [ ] add focused docs for proxy workflows
+- [ ] improve examples for fork + checkpoint + proxy operation
+
+## Explicit Non-Goals for This Phase
+
+These are not the current target:
+
+- full syscall tracing
+- complete subprocess visibility
+- replacing kernel-level sandboxing
+- multi-tenant permission systems
+
+The objective is the cheapest useful top-level command boundary, not a deep execution monitor.
+
+## Success Criteria
+
+The pivot is successful when:
+
+- an agent asks the proxy to run one top-level command
+- the proxy chooses or creates the right workspace fork
+- the proxy checkpoints when needed
+- the proxy mounts the workspace automatically
+- the proxy runs the command
+- the proxy returns output plus a useful changed-files summary
+
+At that point, the agent no longer needs to manually orchestrate forks, checkpoints, mounts, and shell invocation.

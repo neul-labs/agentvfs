@@ -5,5 +5,6 @@
 
 mod attr;
 mod filesystem;
+pub mod util;
 
 pub use filesystem::VfsFilesystem;

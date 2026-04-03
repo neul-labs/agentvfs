@@ -5,6 +5,7 @@ use serde::Serialize;
 
 use crate::commands::Output;
 use crate::error::Result;
+use crate::runtime::workspace::WorkspaceService;
 use crate::storage::BackendType;
 use crate::vault::VaultManager;
 
@@ -44,6 +45,16 @@ pub enum VaultCommand {
         /// Name of the vault (defaults to current)
         name: Option<String>,
     },
+    /// Fork an existing vault into a new vault
+    Fork {
+        /// Source vault name
+        source: String,
+        /// New vault name
+        name: String,
+        /// Switch to the fork after creating it
+        #[arg(long)]
+        r#use: bool,
+    },
 }
 
 #[derive(Serialize)]
@@ -62,6 +73,16 @@ struct VaultInfoOutput {
     created_at: Option<String>,
     path: String,
     backend: String,
+}
+
+#[derive(Serialize)]
+struct VaultForkOutput {
+    source: String,
+    name: String,
+    current: bool,
+    backend: String,
+    path: String,
+    copy_on_write: bool,
 }
 
 pub fn run(args: VaultArgs, output: &Output) -> Result<()> {
@@ -167,6 +188,37 @@ pub fn run(args: VaultArgs, output: &Output) -> Result<()> {
                     println!("Created: {}", created.format("%Y-%m-%d %H:%M:%S"));
                 }
                 println!("Path: {}", config.vault_path(&info.name).display());
+            }
+        }
+        VaultCommand::Fork { source, name, r#use } => {
+            let info = WorkspaceService::new()?.fork(&source, &name)?;
+
+            if r#use {
+                manager.use_vault(&name)?;
+            }
+
+            if output.is_json() {
+                output.print_json(&VaultForkOutput {
+                    source,
+                    name,
+                    current: r#use,
+                    backend: info.backend.to_string(),
+                    path: info.path.display().to_string(),
+                    copy_on_write: info.copy_on_write,
+                });
+            } else {
+                let clone_mode = if info.copy_on_write {
+                    "copy-on-write"
+                } else {
+                    "full copy"
+                };
+                println!(
+                    "Forked vault: {} -> {} ({}, backend: {})",
+                    info.source, info.name, clone_mode, info.backend
+                );
+                if r#use {
+                    println!("Now using vault: {}", name);
+                }
             }
         }
     }

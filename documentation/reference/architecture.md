@@ -1,281 +1,256 @@
 # Architecture Overview
 
-## Design Philosophy
+This document describes the current architecture of agentvfs and the abstraction boundaries the project is converging around.
 
-VFS is designed around these core principles:
+## Outcome View
 
-1. **Familiarity**: Commands mirror standard Unix utilities
-2. **Isolation**: Virtual filesystems are completely separate from the host filesystem
-3. **Portability**: Each vault is a single database file
-4. **Integrity**: All operations are transactional - no partial writes
-5. **Efficiency**: Content-addressable storage for automatic deduplication
-6. **Extensibility**: Pluggable storage backends allow different database engines
+agentvfs is no longer just "a virtual filesystem CLI". The intended operating model is:
 
----
-
-## System Architecture
-
-```
-+-------------------------------------------------------------+
-|                        CLI Layer                             |
-|  +-----+ +-----+ +-----+ +-----+ +-----+ +-----+ +-----+    |
-|  | ls  | | cp  | | cat | |grep | | tag | |exec | |shell|    |
-|  +--+--+ +--+--+ +--+--+ +--+--+ +--+--+ +--+--+ +--+--+    |
-+----+-------+-------+-------+-------+-------+-------+---------+
-     |       |       |       |       |       |       |
-+----v-------v-------v-------v-------v-------v-------v---------+
-|                     Command Layer                            |
-|  +--------------+ +--------------+ +----------------------+  |
-|  | FileCommands | |SearchCommands| |  MaintenanceCommands |  |
-|  +------+-------+ +------+-------+ +----------+-----------+  |
-+---------+----------------+--------------------+---------------+
-          |                |                    |
-+---------v----------------v--------------------v---------------+
-|                     Storage Layer                            |
-|  +-------------+ +-------------+ +-------------------------+ |
-|  |PathResolver | |ContentStore | |    VersionManager       | |
-|  +-------------+ +-------------+ +-------------------------+ |
-+-----------------------------+---------------------------------+
-                              |
-+-----------------------------v---------------------------------+
-|                  Storage Backend Trait                        |
-|  +--------------------------------------------------------+  |
-|  |  trait StorageBackend {                                |  |
-|  |      fn get(&self, key) -> Result<Value>               |  |
-|  |      fn put(&mut self, key, value) -> Result<()>       |  |
-|  |      fn delete(&mut self, key) -> Result<()>           |  |
-|  |      fn scan(&self, prefix) -> Result<Iterator>        |  |
-|  |      fn transaction<F>(&mut self, f: F) -> Result<T>   |  |
-|  |  }                                                     |  |
-|  +--------------------------------------------------------+  |
-+------------+------------------+------------------+-------------+
-             |                  |                  |
-     +-------v-------+  +-------v-------+  +-------v-------+
-     |    SQLite     |  |     Sled      |  |     LMDB      |
-     |    Backend    |  |    Backend    |  |    Backend    |
-     +---------------+  +---------------+  +---------------+
+```text
+agent -> proxy boundary -> mounted forked workspace -> cli tools
 ```
 
----
+That means the primary product surface is a mediated execution boundary. The filesystem, forks, checkpoints, and mounts sit behind that boundary as runtime mechanics.
 
-## Components
+## Layered Model
 
-### CLI Layer
-
-Parses command-line arguments using `clap`. Each command is a subcommand with its own argument structure. The interactive shell (`avfs shell`) provides a REPL that dispatches to the same command handlers.
-
-### Command Layer
-
-Business logic for each operation. Commands are stateless functions that receive parsed arguments and a storage interface. Each command:
-
-- Validates inputs
-- Performs the operation within a transaction
-- Returns results or errors
-
-Commands are **backend-agnostic** - they interact only with the Storage Layer traits, never with database-specific APIs.
-
-### Storage Layer
-
-The storage layer provides high-level abstractions over the raw database:
-
-#### PathResolver
-
-- Resolves virtual paths to file IDs
-- Handles path normalization (`/foo/../bar` -> `/bar`)
-- Manages current working directory state
-- Validates path existence and permissions
-
-#### ContentStore
-
-- Content-addressable storage using SHA-256 hashes
-- Deduplicates identical content across files
-- Handles BLOB storage and retrieval
-- Manages search indexes (backend-specific)
-
-#### VersionManager
-
-- Creates new versions on every file modification
-- Stores version metadata (timestamp, size, hash)
-- Handles version retrieval and restoration
-- Implements pruning strategies
-
-### Storage Backend Trait
-
-The `StorageBackend` trait defines the interface that all database backends must implement:
-
-```rust
-pub trait StorageBackend: Send + Sync {
-    /// Get a value by key
-    fn get(&self, collection: &str, key: &[u8]) -> Result<Option<Vec<u8>>>;
-
-    /// Store a value
-    fn put(&self, collection: &str, key: &[u8], value: &[u8]) -> Result<()>;
-
-    /// Delete a value
-    fn delete(&self, collection: &str, key: &[u8]) -> Result<()>;
-
-    /// Check if key exists
-    fn exists(&self, collection: &str, key: &[u8]) -> Result<bool>;
-
-    /// Scan keys with prefix
-    fn scan_prefix(&self, collection: &str, prefix: &[u8])
-        -> Result<Box<dyn Iterator<Item = (Vec<u8>, Vec<u8>)>>>;
-
-    /// Execute operations atomically
-    fn transaction<F, T>(&self, f: F) -> Result<T>
-    where
-        F: FnOnce(&dyn TransactionContext) -> Result<T>;
-
-    /// Flush to disk
-    fn sync(&self) -> Result<()>;
-
-    /// Compact/optimize storage
-    fn compact(&self) -> Result<()>;
-}
-
-pub trait SearchBackend: Send + Sync {
-    /// Index content for full-text search
-    fn index(&self, id: &str, content: &str) -> Result<()>;
-
-    /// Remove from index
-    fn unindex(&self, id: &str) -> Result<()>;
-
-    /// Full-text search
-    fn search(&self, query: &str, limit: usize) -> Result<Vec<SearchResult>>;
-}
+```text
++---------------------------------------------------------------+
+|                           Agent Layer                         |
+|                top-level command requests only                |
++-------------------------------+-------------------------------+
+                                |
++-------------------------------v-------------------------------+
+|                      Proxy Boundary Layer                     |
+|  ExecutionRequest | PolicyEngine | ProxyRuntime | audit/log   |
++-------------------------------+-------------------------------+
+                                |
++-------------------------------v-------------------------------+
+|                      Workspace Runtime Layer                  |
+| WorkspaceService | CheckpointService | MountSession | changes |
++-------------------------------+-------------------------------+
+                                |
++-------------------------------v-------------------------------+
+|                         Storage Layer                         |
+|     files | versions | metadata | tags | snapshots | audit    |
++-------------------------------+-------------------------------+
+                                |
++-------------------------------v-------------------------------+
+|                      Storage Backend Layer                    |
+|                    SQLite | Sled | LMDB | future              |
++---------------------------------------------------------------+
 ```
 
-See [Storage Backends](../advanced/storage-backends.md) for implementation details.
+## Core Runtime Abstractions
 
----
+The current runtime split is implemented under `src/runtime/`.
 
-## Data Model
+| Abstraction | Role | Current module |
+|-------------|------|----------------|
+| `ExecutionRequest` | Normalized top-level command request passed into the proxy runtime | `src/runtime/execution.rs` |
+| `ExecutionDecision` | Policy outcome for that request | `src/runtime/execution.rs` |
+| `ExecutionResult` | Structured result returned after execution | `src/runtime/execution.rs` |
+| `PolicyEngine` | Side-effect-free command classification and decision logic | `src/runtime/policy.rs` |
+| `WorkspaceService` | Resolve vaults, describe workspaces, open backends, create forks | `src/runtime/workspace.rs` |
+| `CheckpointService` | Create rollback points for risky work | `src/runtime/checkpoint.rs` |
+| `ChangeSummaryService` | Summarize changed files after execution | `src/runtime/change_summary.rs` |
+| `MountSession` | Own mount lifecycle for a workspace view | `src/runtime/mount_session.rs` |
+| `ProxyRuntime` | Orchestrate policy, workspace resolution, checkpoints, mounts, execution, and reporting | `src/runtime/proxy.rs` |
 
-The storage layer uses these logical collections (mapped to tables/trees/buckets by backends):
+These are the main seams the rest of the system should build on.
 
-| Collection | Key | Value |
-|------------|-----|-------|
-| `files` | file_id (u64) | FileMetadata (serialized) |
-| `paths` | path (string) | file_id (u64) |
-| `contents` | hash (SHA-256) | blob data |
-| `versions` | file_id + version_num | VersionMetadata |
-| `tags` | tag_name | tag_id |
-| `file_tags` | file_id + tag_id | timestamp |
-| `metadata` | file_id + key | value |
-| `settings` | key | value |
+## Request / Decision / Result Contracts
 
-Data is serialized using a compact binary format (e.g., bincode, MessagePack, or CBOR).
+The proxy boundary is intentionally explicit about its input and output contracts.
 
----
+### `CommandSpec`
 
-## Vault Concept
+`CommandSpec` describes how a top-level command is represented:
 
-A **vault** is an independent virtual filesystem stored in a single database file. Users can:
+- `Argv(Vec<String>)`
+- `Shell(String)`
 
-- Create multiple vaults for different projects
-- Switch between vaults with `avfs vault use`
-- Back up vaults by copying the database file
+The runtime should prefer argv-style execution when available and only fall back to shell-mode when the agent truly needs shell parsing.
 
-Default vault location: `~/.avfs/vaults/`
+### `ExecutionRequest`
 
-```
-~/.avfs/
-+-- config.toml          # Global configuration
-+-- current_vault        # Tracks active vault
-+-- vaults/
-    +-- default.avfs      # SQLite backend (or .sled, .lmdb)
-    +-- myproject.avfs
-    +-- experiments.avfs
-```
+`ExecutionRequest` is the canonical input to the proxy runtime. It currently carries:
 
-Vault files use the `.avfs` extension regardless of backend, with the backend type stored in metadata.
+- target vault selection
+- mounted working directory inside the workspace
+- read-only intent
+- checkpoint mode
+- explicit or automatic mountpoint
+- the requested top-level command
 
----
+The request is validated before any expensive runtime work happens.
 
-## Content-Addressable Storage
+### `ExecutionDecision`
 
-Files are stored using content-addressable storage (CAS):
+`ExecutionDecision` is the policy output. It includes:
 
-1. When a file is written, its content is hashed with SHA-256
-2. The content is stored in the `contents` collection keyed by hash
-3. The file entry references the content hash
-4. Multiple files with identical content share the same blob
+- `PolicyAction`
+  - `Allow`
+  - `AllowWithCheckpoint`
+  - `Deny`
+  - `RequireApproval`
+- command categories
+- an optional reason
 
-**Benefits:**
+This keeps policy inspectable and easy to audit.
 
-- **Deduplication**: Identical content stored once
-- **Integrity**: Hash verification catches corruption
-- **Efficient versioning**: Unchanged content isn't duplicated
+### `ExecutionResult`
 
-```
-files                          contents
-+------------------------+     +------------------------------+
-| path: /docs/readme.txt |---->| hash: abc123...              |
-| content_hash: abc123...|     | data: "Hello, World!"        |
-+------------------------+     | size: 13                     |
-+------------------------+     | ref_count: 2                 |
-| path: /backup/copy.txt |---->+------------------------------+
-| content_hash: abc123...|
-+------------------------+
-```
+`ExecutionResult` is the structured proxy response. It includes:
 
----
+- vault and mountpoint used
+- cwd and command string
+- stdout, stderr, and exit code
+- execution duration
+- whether execution was read-only
+- checkpoint created, if any
+- changed-files summary
+- the policy decision that governed execution
 
-## Transaction Safety
+That result shape is the basis for a stable agent-facing JSON contract.
 
-All storage backends must provide ACID transactions:
+## Policy Boundary
 
-- **Atomic**: Operations either complete fully or not at all
-- **Consistent**: Data integrity is maintained
-- **Isolated**: Concurrent operations don't interfere
-- **Durable**: Committed changes survive crashes
+`PolicyEngine` is intentionally a cheap, top-level decision layer.
 
-The `transaction()` method wraps multiple operations atomically.
+It classifies a requested command into coarse categories:
 
----
+- `ReadOnly`
+- `Mutating`
+- `Destructive`
+- `Networked`
+- `HostEscapeRisk`
+- `Interactive`
 
-## Search Architecture
+The important constraint is that this is a top-level command boundary only. The proxy is not trying to observe every child process or syscall launched from inside scripts.
 
-Full-text search is handled by a separate `SearchBackend` trait:
+This is a deliberate performance tradeoff:
 
-| Backend | Search Implementation |
-|---------|----------------------|
-| SQLite | FTS5 extension (built-in) |
-| Sled/LMDB | Tantivy (embedded Lucene-like engine) |
-| External | Can integrate with MeiliSearch, Elasticsearch |
+- cheap enough to run for every agent command
+- useful enough to gate risky work
+- simple enough to extend without turning the runtime into a full sandbox
 
-The search index is kept in sync with content changes through the ContentStore.
+## Workspace Runtime
 
----
+The workspace runtime owns the mechanics behind the proxy boundary.
 
-## Error Handling
+### `WorkspaceService`
 
-Errors are propagated using Rust's `Result` type:
+`WorkspaceService` separates task-workspace lifecycle from CLI argument parsing and from low-level storage code. Its responsibilities are:
 
-```rust
-pub enum VfsError {
-    NotFound(PathBuf),
-    AlreadyExists(PathBuf),
-    NotADirectory(PathBuf),
-    NotAFile(PathBuf),
-    InvalidPath(String),
-    StorageError(Box<dyn std::error::Error>),
-    SerializationError(String),
-    IoError(std::io::Error),
-}
-```
+- resolve the current vault or an explicitly requested vault
+- describe a workspace and open its backend
+- create cheap forks for task-scoped work
 
-Backend-specific errors are wrapped in `StorageError` to maintain abstraction.
+Fork creation is backend-aware and uses copy-on-write cloning where the host filesystem supports it.
 
----
+### `CheckpointService`
 
-## Adding a New Backend
+`CheckpointService` owns checkpoint creation for rollback-oriented workflows. This keeps checkpoint behavior out of command handlers and makes it available to the proxy runtime as a reusable service.
 
-To add a new storage backend:
+### `MountSession`
 
-1. Implement `StorageBackend` trait
-2. Implement `SearchBackend` trait (or use tantivy adapter)
-3. Register in the backend factory
-4. Add CLI flag: `--backend <name>`
+`MountSession` is the library-level mount abstraction used by the runtime. It exists to prevent the proxy from shelling out to `avfs mount` as a subprocess.
 
-See [Storage Backends](../advanced/storage-backends.md) for implementation guide.
+Its responsibilities are:
+
+- prepare a mountpoint
+- create a mounted workspace view
+- own cleanup on drop
+
+This is the main performance-oriented seam for future session reuse.
+
+### `ChangeSummaryService`
+
+`ChangeSummaryService` provides a post-execution summary of which workspace paths changed. The current implementation is audit-delta based, which keeps it cheap and scoped to the executed command.
+
+## Proxy Runtime
+
+`ProxyRuntime` is the orchestration layer behind the `proxy` command path.
+
+Its current execution flow is:
+
+1. validate the `ExecutionRequest`
+2. resolve the target workspace
+3. evaluate policy with `PolicyEngine`
+4. reject denied or approval-gated commands
+5. baseline change tracking
+6. create an automatic checkpoint when policy and mode require it
+7. create a `MountSession`
+8. execute the top-level command in the mounted workspace
+9. summarize changed files
+10. return an `ExecutionResult`
+
+This is the right architectural center for future proxy features.
+
+## CLI Adapters
+
+CLI command handlers under `src/commands/` should stay thin.
+
+Their role is:
+
+- parse user input
+- construct runtime requests
+- call runtime services
+- render output
+
+They should not become the place where mount lifecycle, policy decisions, checkpoint strategy, or workspace orchestration accumulates.
+
+## Storage Layer
+
+The storage layer remains responsible for durable filesystem state:
+
+- path resolution
+- content storage
+- version history
+- metadata and tags
+- snapshots / checkpoints
+- audit records
+
+This layer should stay backend-agnostic. Proxy policy and runtime lifecycle should sit above it, not inside it.
+
+## Backend Layer
+
+Backends provide physical persistence and indexing behavior.
+
+Current direction:
+
+- SQLite as the default durable backend
+- Sled as an optional embedded backend
+- LMDB as an optional read-heavy backend
+
+The runtime layer should depend on backend capabilities through storage abstractions, not through backend-specific policy logic.
+
+## Extension Rules
+
+These rules matter for both performance and maintainability:
+
+- Keep policy evaluation side-effect-free.
+- Classify commands before forks, checkpoints, or mounts when possible.
+- Keep mount lifecycle in `MountSession`, not in CLI subprocess wrappers.
+- Keep task-workspace lifecycle in `WorkspaceService`, not mixed into general vault CRUD forever.
+- Keep changed-file reporting in runtime/reporting services, not buried in command handlers.
+- Keep agent-facing execution contracts explicit through `ExecutionRequest` and `ExecutionResult`.
+
+## Current Limits
+
+The architecture is intentionally constrained in a few ways right now:
+
+- the boundary governs top-level commands, not child-process tracing
+- persistent `keep_mount` proxy sessions are not implemented in the runtime path yet
+- `MountSession` and `ProxyRuntime` are currently FUSE-gated
+- command execution is orchestrated inside `ProxyRuntime` today and can later be split into a dedicated executor if needed
+
+Those are acceptable limits for the current phase because the main goal is a cheap and practical execution boundary.
+
+## Related Documents
+
+- [Proxy Boundary](../advanced/proxy-boundary.md)
+- [Agent Integration](../advanced/agent-integration.md)
+- [FUSE Mount](../advanced/fuse-mount.md)
+- [Vault Management](../user-guide/vaults.md)

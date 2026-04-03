@@ -7,6 +7,7 @@ use crate::error::{Result, VfsError};
 use crate::storage::BackendType;
 
 /// Global avfs configuration directory.
+#[derive(Clone)]
 pub struct Config {
     /// Base directory (~/.avfs)
     base_dir: PathBuf,

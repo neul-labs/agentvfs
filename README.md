@@ -1,190 +1,148 @@
 # agentvfs
 
-**Sandboxed filesystem for AI agents**
+**Workspace runtime and execution boundary for AI agents**
 
 [![Crates.io](https://img.shields.io/crates/v/agentvfs.svg)](https://crates.io/crates/agentvfs)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Downloads](https://img.shields.io/crates/d/agentvfs.svg)](https://crates.io/crates/agentvfs)
 
-A database-backed virtual filesystem designed for AI agents. Create isolated workspaces, track file versions, search content, and roll back changes - all without touching the real filesystem.
+agentvfs is a database-backed virtual filesystem for agent workspaces. The long-term operating model is not just "a fake filesystem", but a proxy boundary that sits between the agent, the shell, and the mounted workspace.
 
-## What's New
+The intended shape is:
 
-- **High-performance allocator** - mimalloc for faster memory operations
-- **Zero-copy caching** - rkyv-based cache for frequently accessed data
-- **Cross-platform** - Pre-built binaries for Linux, macOS, and Windows
-- **Interactive shell** - REPL mode with tab completion and history
-
-## Installation
-
-### Quick Install
-
-```bash
-curl -sSfL https://raw.githubusercontent.com/neul-labs/agentvfs/main/install.sh | bash
+```text
+agent -> proxy boundary -> mounted forked workspace -> cli tools
 ```
 
-### From crates.io
+That boundary is where policy, checkpoints, forks, audit, and command execution should live.
 
-```bash
-cargo install agentvfs
-```
+## Outcome View
 
-### From Source
+The target product model is:
 
-```bash
-git clone https://github.com/neul-labs/agentvfs
-cd agentvfs
-cargo build --release
-```
+- **Vaults** are durable workspace roots
+- **Forks** are cheap task workspaces derived from a vault
+- **Checkpoints** are rollback points inside a fork
+- **Mounts** expose a fork as a real directory for standard tools
+- **Proxy execution** is the top-level boundary the agent should use for shell work
 
-### Pre-built Binaries
+The design goal is cheap top-level command control, not syscall-level tracing. agentvfs should see and govern the command the agent requested, prepare the workspace for it, and report the resulting filesystem delta.
 
-Download from [GitHub Releases](https://github.com/neul-labs/agentvfs/releases):
+## Current Building Blocks
 
-| Platform | Download |
-|----------|----------|
-| Linux x86_64 | `avfs-VERSION-linux-x86_64.tar.gz` |
-| Linux ARM64 | `avfs-VERSION-linux-aarch64.tar.gz` |
-| macOS x86_64 | `avfs-VERSION-darwin-x86_64.tar.gz` |
-| macOS ARM64 | `avfs-VERSION-darwin-aarch64.tar.gz` |
-| Windows x86_64 | `avfs-VERSION-windows-x86_64.zip` |
+Today the repo already provides the underlying primitives needed for that boundary:
+
+- `vault create`, `vault list`, `vault use`, `vault delete`, `vault info`
+- `vault fork` for fast task workspace creation
+- `checkpoint ...` as a first-class alias over snapshots
+- `mount` / `unmount` for FUSE-backed workspace exposure
+- `proxy` as the start of a shell-facing runtime surface
+- `audit`, `quota`, `log`, `diff`, and JSON output for agent integration
+
+The next step is to pivot `proxy` from a shell convenience wrapper into the real policy-gated command execution surface.
 
 ## Quick Start
 
 ```bash
-# Create a vault (isolated workspace)
+# Create a durable workspace root
 avfs vault create myproject
 
-# Work with files
+# Create some files
 avfs mkdir /src
 avfs write /src/main.py "print('hello')"
 avfs cat /src/main.py
 
-# Search and navigate
+# Create a cheap task workspace
+avfs vault fork myproject myproject-task-1 --use
+
+# Save a rollback point before risky work
+avfs checkpoint save before-refactor
+
+# Work normally
 avfs grep "hello" /
 avfs tree /
-
-# Version control
 avfs log /src/main.py
-avfs checkout /src/main.py --version 1
-
-# Interactive shell
-avfs shell
 ```
 
-## Interactive Shell
+## Proxy Boundary Model
 
-Launch a REPL where commands work without the `avfs` prefix:
+The recommended mental model for agent execution is:
 
-```
-$ avfs shell
-avfs interactive shell
-Type 'help' for available commands, 'exit' to quit.
+1. Agent requests one top-level command.
+2. The proxy boundary decides whether that command is allowed.
+3. The proxy chooses a vault or fork.
+4. The proxy creates a checkpoint if policy requires it.
+5. The proxy mounts the workspace.
+6. The proxy runs the command in the mounted workspace.
+7. The proxy returns stdout, stderr, exit code, and a changed-files summary.
 
-myproject> mkdir /docs
-myproject> write /docs/notes.txt "Meeting notes..."
-myproject> ls /docs
-notes.txt
-myproject> cat /docs/notes.txt
-Meeting notes...
-myproject> exit
-Goodbye!
-```
+This is intentionally a **top-level command boundary**. It is meant to be cheap and practical. It does not try to trace every subprocess launched from inside scripts.
 
-**Shell features:**
-- Tab completion for commands and paths
-- Command history (persisted in `~/.avfs/history`)
-- All standard commands available
-- Ctrl+C to cancel, Ctrl+D to exit
-
-## Commands
+## Core Commands
 
 | Category | Commands |
 |----------|----------|
-| **Files** | `ls`, `cat`, `write`, `cp`, `mv`, `rm`, `tree` |
-| **Directories** | `mkdir`, `pwd` |
+| **Files** | `ls`, `cat`, `write`, `cp`, `mv`, `rm`, `tree`, `mkdir` |
 | **Search** | `grep`, `find`, `search` |
 | **Versioning** | `log`, `checkout`, `revert`, `diff` |
 | **Metadata** | `tag`, `untag`, `meta` |
 | **Import/Export** | `import`, `export`, `exec` |
-| **Vaults** | `vault create`, `vault list`, `vault use`, `vault delete` |
-| **Maintenance** | `stats`, `prune`, `gc`, `compact` |
-| **Snapshots** | `snapshot save`, `snapshot restore`, `snapshot list` |
+| **Vaults** | `vault create`, `vault list`, `vault use`, `vault delete`, `vault info`, `vault fork` |
+| **Rollback** | `checkpoint save`, `checkpoint restore`, `checkpoint list`, `snapshot ...` |
+| **Maintenance** | `stats`, `prune`, `gc`, `compact`, `maintain`, `audit`, `quota` |
+| **Shell** | `shell`, `aliases` |
+| **FUSE / Runtime** | `mount`, `unmount`, `proxy` |
 
 ## For AI Agents
 
-agentvfs is designed for AI agent workflows:
+Low-level integration today can call the CLI directly:
 
 ```python
-import subprocess
 import json
+import subprocess
 
 def avfs(*args):
     result = subprocess.run(
         ["avfs", "--json"] + list(args),
-        capture_output=True, text=True
+        capture_output=True,
+        text=True,
     )
     return json.loads(result.stdout) if result.stdout else None
 
-# Create isolated workspace
 avfs("vault", "create", "agent-workspace")
-
-# Save checkpoint before risky operations
-avfs("snapshot", "save", "before-changes")
-
-# Work with files
-avfs("mkdir", "/workspace")
-avfs("write", "/workspace/code.py", "# Generated code")
-
-# Roll back if needed
-avfs("snapshot", "restore", "before-changes")
+avfs("vault", "fork", "agent-workspace", "agent-workspace-task-1")
+avfs("--vault", "agent-workspace-task-1", "checkpoint", "save", "before-change")
 ```
 
-**Agent-friendly features:**
-- `--json` flag for structured output on all commands
-- Snapshots for save/restore state
-- Quotas to prevent runaway resource usage
-- Audit logs for debugging
-- FUSE mount for native filesystem access
+The intended higher-level integration is a proxy boundary that handles:
 
-## Storage Backends
+- command classification
+- checkpoint creation
+- mount lifecycle
+- execution
+- change reporting
 
-agentvfs supports multiple storage backends:
-
-| Backend | Feature Flag | Best For |
-|---------|--------------|----------|
-| **SQLite** (default) | Always available | General use, queries |
-| **Sled** | `sled-backend` | High write throughput |
-| **LMDB** | `lmdb-backend` | Read-heavy, memory-mapped |
-
-```bash
-# Install with optional backends
-cargo install agentvfs --features "sled-backend,lmdb-backend"
-
-# Create vault with specific backend
-avfs vault create myproject --backend lmdb
-```
-
-See [Storage Backends](documentation/advanced/storage-backends.md) for details.
+See [Agent Integration](documentation/advanced/agent-integration.md) and [Proxy Boundary](documentation/advanced/proxy-boundary.md).
 
 ## Why agentvfs?
 
 | Feature | Benefit |
 |---------|---------|
-| **Isolation** | Sandboxed filesystem - no risk to real files |
-| **Versioning** | Every change tracked, instant rollback |
-| **Searchable** | Full-text search across all content |
-| **Portable** | Single database file, easy to backup |
-| **Fast** | Multiple backends, mimalloc allocator, rkyv caching |
+| **Isolation** | Agent work stays out of the host filesystem |
+| **Forking** | New task workspaces can be created cheaply |
+| **Checkpoints** | Rollback before risky commands |
+| **Auditability** | Commands and file changes can be inspected |
+| **Compatibility** | Standard CLI tools can run via mounted workspaces |
 
 ## Documentation
 
 - [Quick Start Guide](documentation/getting-started/quickstart.md)
-- [Shell Usage](documentation/user-guide/shell.md)
+- [Core Concepts](documentation/getting-started/concepts.md)
 - [Vault Management](documentation/user-guide/vaults.md)
-- [Versioning](documentation/user-guide/versioning.md)
 - [Agent Integration](documentation/advanced/agent-integration.md)
+- [Proxy Boundary](documentation/advanced/proxy-boundary.md)
 - [FUSE Mount](documentation/advanced/fuse-mount.md)
+- [Architecture](documentation/reference/architecture.md)
 - [Command Reference](documentation/reference/commands.md)
 
 ## License

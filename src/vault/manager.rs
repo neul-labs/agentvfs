@@ -1,10 +1,12 @@
 //! Vault management operations.
 
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use chrono::{DateTime, TimeZone, Utc};
 
 use crate::error::{Result, VfsError};
+use crate::runtime::workspace::{dir_size, validate_workspace_name, WorkspaceService};
 #[cfg(feature = "lmdb-backend")]
 use crate::storage::LmdbBackend;
 #[cfg(feature = "sled-backend")]
@@ -28,6 +30,21 @@ pub struct VaultInfo {
     pub backend: BackendType,
 }
 
+/// Information about a forked vault.
+#[derive(Debug, Clone)]
+pub struct ForkInfo {
+    /// Source vault name.
+    pub source: String,
+    /// New vault name.
+    pub name: String,
+    /// Storage backend type.
+    pub backend: BackendType,
+    /// Backing path of the forked vault.
+    pub path: PathBuf,
+    /// Whether the fork used copy-on-write cloning.
+    pub copy_on_write: bool,
+}
+
 /// Vault manager for CRUD operations on vaults.
 pub struct VaultManager {
     config: Config,
@@ -48,7 +65,7 @@ impl VaultManager {
 
     /// Create a new vault with specified backend.
     pub fn create_with_backend(&self, name: &str, backend: BackendType) -> Result<()> {
-        validate_vault_name(name)?;
+        validate_workspace_name(name)?;
 
         if self.config.vault_exists(name) {
             return Err(VfsError::VaultExists(name.to_string()));
@@ -189,6 +206,11 @@ impl VaultManager {
         self.config.delete_vault_file(name)
     }
 
+    /// Fork an existing vault into a new vault.
+    pub fn fork(&self, source: &str, name: &str) -> Result<ForkInfo> {
+        WorkspaceService::with_config(self.config.clone()).fork(source, name)
+    }
+
     /// Get the currently active vault name.
     pub fn current(&self) -> Result<Option<String>> {
         self.config.current_vault()
@@ -218,55 +240,4 @@ impl Default for VaultManager {
     fn default() -> Self {
         Self::new().expect("failed to create vault manager")
     }
-}
-
-/// Validate a vault name.
-fn validate_vault_name(name: &str) -> Result<()> {
-    if name.is_empty() {
-        return Err(VfsError::InvalidPath(
-            "vault name cannot be empty".to_string(),
-        ));
-    }
-
-    if name.len() > 64 {
-        return Err(VfsError::InvalidPath(format!(
-            "vault name too long: {} chars (max 64)",
-            name.len()
-        )));
-    }
-
-    // Only allow alphanumeric, hyphen, and underscore
-    for c in name.chars() {
-        if !c.is_alphanumeric() && c != '-' && c != '_' {
-            return Err(VfsError::InvalidPath(format!(
-                "invalid character in vault name: {:?}",
-                c
-            )));
-        }
-    }
-
-    // Don't allow names starting with dot or hyphen
-    if name.starts_with('.') || name.starts_with('-') {
-        return Err(VfsError::InvalidPath(
-            "vault name cannot start with . or -".to_string(),
-        ));
-    }
-
-    Ok(())
-}
-
-/// Calculate the total size of a directory recursively.
-fn dir_size(path: &std::path::Path) -> u64 {
-    let mut size = 0;
-    if let Ok(entries) = std::fs::read_dir(path) {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.is_file() {
-                size += std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
-            } else if path.is_dir() {
-                size += dir_size(&path);
-            }
-        }
-    }
-    size
 }

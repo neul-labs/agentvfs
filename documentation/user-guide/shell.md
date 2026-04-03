@@ -2,6 +2,8 @@
 
 agentvfs provides an interactive shell mode for quick exploration and file operations without the `avfs` prefix.
 
+For agent execution, the long-term preferred model is a proxy boundary that mediates top-level shell commands. The interactive shell remains useful for manual inspection and development.
+
 ## Starting the Shell
 
 ```bash
@@ -102,6 +104,10 @@ myproject> search "authentication"
 
 | Command | Description |
 |---------|-------------|
+| `checkpoint save <name>` | Save current state |
+| `checkpoint list` | List checkpoints |
+| `checkpoint restore <name>` | Restore to checkpoint |
+| `checkpoint delete <name>` | Delete checkpoint |
 | `snapshot save <name>` | Save current state |
 | `snapshot list` | List all snapshots |
 | `snapshot restore <name>` | Restore to snapshot |
@@ -200,17 +206,19 @@ avfs shell --no-history
 
 The shell is particularly useful for AI agents that need to explore and manipulate files interactively.
 
+For mediated top-level command execution, prefer the proxy-boundary model in the advanced documentation.
+
 ### Checkpoint and Rollback
 
 ```bash
 # Save state before risky operations
-agent-workspace> snapshot save before-refactor
+agent-workspace> checkpoint save before-refactor
 
 # Make changes
 agent-workspace> write /src/main.py "new code..."
 
 # If something goes wrong, rollback
-agent-workspace> snapshot restore before-refactor
+agent-workspace> checkpoint restore before-refactor
 ```
 
 ### Exploring Unknown Codebases

@@ -4,4 +4,4 @@ mod config;
 mod manager;
 
 pub use config::Config;
-pub use manager::{VaultInfo, VaultManager};
+pub use manager::{ForkInfo, VaultInfo, VaultManager};

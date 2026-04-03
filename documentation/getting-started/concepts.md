@@ -1,235 +1,102 @@
 # Core Concepts
 
-Understanding these concepts will help you get the most out of VFS.
+These concepts define the intended operating model for agentvfs.
 
 ## Vaults
 
-A **vault** is a self-contained virtual filesystem stored in a single database file.
+A **vault** is the durable root of a workspace. It stores files, directories, versions, metadata, tags, snapshots, and audit history.
 
-```
-~/.avfs/
-├── project-a.avfs    # One vault
-├── project-b.avfs    # Another vault
-└── experiments.avfs  # A third vault
-```
+Use vaults for:
 
-### Key Properties
+- project roots
+- long-lived agent workspaces
+- durable state you may want to revisit later
 
-- **Isolated**: Each vault is completely independent
-- **Portable**: Copy the `.avfs` file to move your entire filesystem
-- **Single File**: Everything (files, directories, metadata, versions) in one file
+## Forks
 
-### Working with Vaults
+A **fork** is a cheap workspace derived from a vault.
 
-```bash
-# Create a vault
-avfs vault create myproject
+Forks are the right unit for:
 
-# List vaults (current marked with *)
-avfs vault list
+- one agent task
+- one risky experiment
+- one isolated command session
 
-# Switch vaults
-avfs vault use another-project
+The important design point is that agents should usually mutate a fork, not the long-lived root vault directly.
 
-# Use a specific vault for one command
-avfs --vault myproject ls /
-```
+## Checkpoints
 
-## Content-Addressable Storage
+A **checkpoint** is a rollback point inside a vault or fork.
 
-VFS uses **content-addressable storage** (CAS), where files are stored by the SHA-256 hash of their content.
+Checkpoints are useful when:
 
-```
-                    ┌─────────────────┐
-    file-a.txt ───▶ │  sha256: abc123 │
-                    │  "Hello World"  │
-    file-b.txt ───▶ │                 │ ◀─── Same content,
-                    └─────────────────┘      stored once!
-```
+- a command may rewrite many files
+- the agent is about to run a risky tool
+- you want a simple undo point before an experiment
 
-### Benefits
+## Mounts
 
-1. **Automatic Deduplication**: Identical content is stored only once
-2. **Efficient Versioning**: New versions only store changed content
-3. **Integrity**: Content is verified by hash on every read
-4. **Space Savings**: Multiple files pointing to same content share storage
+A **mount** exposes a vault or fork as a real directory.
 
-### Example
+That matters because most developer tools expect:
 
-```bash
-# Create two files with identical content
-avfs write /file1.txt "Hello World"
-avfs write /file2.txt "Hello World"
+- normal paths
+- normal current working directories
+- normal file APIs
 
-# Check storage - only one blob exists!
-avfs stats
-# Blobs: 1, Total size: 11 bytes
+Mounts are therefore the bridge between the virtual workspace and ordinary CLI tools.
+
+## Proxy Boundary
+
+The main architectural direction is a **proxy boundary** between the agent and shell execution.
+
+```text
+agent -> proxy boundary -> mounted forked workspace -> cli tools
 ```
 
-## Automatic Versioning
+The proxy boundary should own:
 
-Every modification to a file creates a new **version**. VFS keeps the complete history.
+- top-level command policy
+- fork selection
+- checkpoint creation
+- mount lifecycle
+- execution
+- audit and change summaries
 
-```
-/docs/readme.txt
-├── Version 1: "Initial content"     (created)
-├── Version 2: "Updated content"     (modified)
-├── Version 3: "Fixed typo"          (modified)
-└── Version 4: "Final version"       (current)
-```
+## Top-Level Command Control
 
-### How It Works
+The boundary is intentionally cheap. It should govern the command the agent requested, not every subprocess or syscall underneath it.
 
-1. **Write Operation**: Creates new version, old versions preserved
-2. **Version Storage**: Each version points to a content blob (via SHA-256)
-3. **No Deltas**: Full content stored (but deduplicated via CAS)
+That means:
 
-### Working with Versions
+- good at mediating shell work at low cost
+- not a deep process sandbox
 
-```bash
-# View history
-avfs log /docs/readme.txt
+This is a deliberate trade-off.
 
-# Read specific version
-avfs cat -v 2 /docs/readme.txt
+## Durable vs Task State
 
-# Compare versions
-avfs diff /docs/readme.txt --v1 1 --v2 3
+Think in two layers:
 
-# Restore old version (creates new version with old content)
-avfs checkout /docs/readme.txt -v 2
-```
+- **durable state**
+  - vault roots
+- **task state**
+  - forks and checkpoints
 
-## File Entries vs Content Blobs
+This lets you keep a stable project root while giving each agent task an isolated working area with rollback.
 
-VFS separates **metadata** (file entries) from **content** (blobs).
+## Recommended Mental Model
 
-```
-┌─────────────────────────────────┐
-│         File Entry              │
-├─────────────────────────────────┤
-│ id: 42                          │
-│ path: /docs/readme.txt          │
-│ type: file                      │
-│ size: 1024                      │
-│ content_hash: sha256:abc123...  │──▶ ┌──────────────┐
-│ created: 2024-01-15 10:00       │    │ Content Blob │
-│ modified: 2024-01-15 12:30      │    │ "Hello..."   │
-│ version: 3                      │    └──────────────┘
-└─────────────────────────────────┘
-```
+1. Create a durable vault for the project.
+2. Fork it for a task.
+3. Checkpoint before risky work.
+4. Mount the fork for tool compatibility.
+5. Run the task through the proxy boundary.
+6. Inspect, keep, or discard the fork.
 
-### File Entry Contains
+## Related Guides
 
-- Path and name
-- Type (file or directory)
-- Size
-- Timestamps (created, modified)
-- Version number
-- Reference to content blob
-- Parent directory reference
-
-### Content Blob Contains
-
-- Raw file content
-- Identified by SHA-256 hash
-- Shared across files/versions with same content
-
-## Tags and Metadata
-
-VFS supports rich metadata on files.
-
-### Tags
-
-Tags are simple labels attached to files:
-
-```bash
-avfs tag /report.pdf urgent
-avfs tag /report.pdf quarterly
-avfs find --tag urgent
-```
-
-### Custom Metadata
-
-Key-value pairs for structured data:
-
-```bash
-avfs meta /report.pdf author "Jane Doe"
-avfs meta /report.pdf department "Finance"
-avfs meta /report.pdf status "approved"
-```
-
-### Metadata Use Cases
-
-- **Document Management**: Author, status, review date
-- **Asset Tracking**: License, source, expiration
-- **Workflow**: Priority, assigned-to, due-date
-
-## Storage Backends
-
-VFS supports multiple database backends:
-
-| Backend | Best For | Trade-offs |
-|---------|----------|------------|
-| **SQLite** | General use | Excellent tooling, FTS5 search |
-| **Sled** | High write throughput | Pure Rust, modern |
-| **LMDB** | Read-heavy workloads | Memory-mapped, fast reads |
-| **RocksDB** | Large datasets | LSM-tree, SSD-optimized |
-
-The backend affects:
-
-- Performance characteristics
-- Search implementation (FTS5 vs Tantivy)
-- File size limits
-- Concurrency behavior
-
-See [Storage Backends](../advanced/storage-backends.md) for details.
-
-## The Root Directory
-
-Every vault has a root directory `/`. This is always your starting point.
-
-```bash
-# Root is always accessible
-avfs ls /
-
-# All paths are absolute from root
-avfs cat /docs/readme.txt
-
-# There is no "current directory" in VFS
-# (except in interactive shell mode)
-```
-
-!!! note "No Relative Paths"
-    In normal CLI usage, all paths are absolute. The interactive shell
-    supports `cd` and relative paths for convenience.
-
-## Snapshots
-
-Snapshots capture the entire vault state at a point in time.
-
-```bash
-# Save current state
-avfs snapshot save before-refactor
-
-# Make changes...
-avfs rm -r /old-code
-avfs mv /new-code /production
-
-# Oops! Restore previous state
-avfs snapshot restore before-refactor
-```
-
-Snapshots are useful for:
-
-- **Experimentation**: Try changes safely
-- **Checkpoints**: Save state before major operations
-- **AI Agents**: Provide rollback capability
-
-## Next Steps
-
-Now that you understand the concepts:
-
-- [File Operations](../user-guide/file-operations.md) - Master file management
-- [Versioning](../user-guide/versioning.md) - Deep dive into version control
-- [Search](../user-guide/search.md) - Find anything quickly
+- [Quick Start](quickstart.md)
+- [Vault Management](../user-guide/vaults.md)
+- [Agent Integration](../advanced/agent-integration.md)
+- [Proxy Boundary](../advanced/proxy-boundary.md)

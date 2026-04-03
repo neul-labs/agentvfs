@@ -8,8 +8,8 @@ use serde::Serialize;
 
 use crate::commands::Output;
 use crate::error::{Result, VfsError};
-use crate::fs::FileSystem;
-use crate::mount::VfsFilesystem;
+use crate::runtime::mount_session::MountSession;
+use crate::runtime::workspace::WorkspaceService;
 use crate::vault::VaultManager;
 
 #[derive(Args)]
@@ -50,26 +50,9 @@ pub fn run(args: MountArgs, output: &Output) -> Result<()> {
         return Err(VfsError::NotADirectory(mountpoint.to_path_buf()));
     }
 
-    // Open the vault
     let manager = VaultManager::new()?;
-    let backend = manager.open(&args.vault)?;
-    let fs = FileSystem::new(backend);
-
-    // Create FUSE filesystem
-    let vfs_fs = VfsFilesystem::new(fs, args.readonly);
-
-    // Build mount options
-    let mut options = vec![
-        MountOption::FSName(format!("vfs:{}", args.vault)),
-    ];
-
-    if args.readonly {
-        options.push(MountOption::RO);
-    }
-
-    if args.allow_other {
-        options.push(MountOption::AllowOther);
-    }
+    let _ = manager.open(&args.vault)?;
+    let backend = WorkspaceService::new()?.open(&args.vault)?;
 
     if output.is_json() {
         output.print_json(&MountOutput {
@@ -80,27 +63,38 @@ pub fn run(args: MountArgs, output: &Output) -> Result<()> {
     }
 
     if args.foreground {
-        // Run in foreground
         if !output.is_json() {
             println!("Mounting {} at {} (foreground mode)", args.vault, args.mountpoint);
             println!("Press Ctrl+C to unmount");
         }
 
-        fuser::mount2(vfs_fs, &args.mountpoint, &options)
-            .map_err(|e| VfsError::Internal(format!("mount failed: {}", e)))?;
+        MountSession::mount_foreground(
+            &args.vault,
+            backend,
+            mountpoint,
+            args.readonly,
+            args.allow_other,
+        )?;
     } else {
-        // Fork to background using a simple approach
-        // Note: For production, use a proper daemonization library
         if !output.is_json() {
             println!("Mounted {} at {}", args.vault, args.mountpoint);
             println!("Use 'vfs unmount {}' or 'fusermount -u {}' to unmount",
                 args.mountpoint, args.mountpoint);
         }
 
-        // For now, just run in foreground
-        // TODO: Implement proper daemonization
-        fuser::mount2(vfs_fs, &args.mountpoint, &options)
-            .map_err(|e| VfsError::Internal(format!("mount failed: {}", e)))?;
+        let session = MountSession::spawn(
+            &args.vault,
+            backend,
+            mountpoint.to_path_buf(),
+            args.readonly,
+            args.allow_other,
+            false,
+        )?;
+        session
+            .mountpoint()
+            .to_path_buf();
+
+        std::thread::park();
     }
 
     Ok(())

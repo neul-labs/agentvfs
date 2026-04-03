@@ -47,6 +47,7 @@ nav:
   - Advanced:
     - Storage Backends: advanced/storage-backends.md
     - Maintenance: advanced/maintenance.md
+    - Proxy Boundary: advanced/proxy-boundary.md
     - FUSE Mount: advanced/fuse-mount.md
     - Agent Integration: advanced/agent-integration.md
   - Reference:

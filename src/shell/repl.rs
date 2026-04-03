@@ -199,6 +199,7 @@ impl Shell {
             Vault(crate::commands::vault::VaultArgs),
             Ls(crate::commands::ls::LsArgs),
             Cat(crate::commands::cat::CatArgs),
+            Checkpoint(crate::commands::checkpoint::CheckpointArgs),
             Write(crate::commands::write::WriteArgs),
             Mkdir(crate::commands::mkdir::MkdirArgs),
             Rm(crate::commands::rm::RmArgs),
@@ -226,6 +227,12 @@ impl Shell {
             Quota(crate::commands::quota::QuotaArgs),
             Audit(crate::commands::audit::AuditArgs),
             Snapshot(crate::commands::snapshot::SnapshotArgs),
+            #[cfg(feature = "fuse")]
+            Mount(crate::commands::mount::MountArgs),
+            #[cfg(feature = "fuse")]
+            Unmount(crate::commands::unmount::UnmountArgs),
+            #[cfg(feature = "fuse")]
+            Proxy(crate::commands::proxy::ProxyArgs),
             Pwd,
         }
 
@@ -246,6 +253,9 @@ impl Shell {
             CliCommands::Vault(args) => crate::commands::vault::run(args, &output),
             CliCommands::Ls(args) => crate::commands::ls::run(args, &output, cli.vault),
             CliCommands::Cat(args) => crate::commands::cat::run(args, &output, cli.vault),
+            CliCommands::Checkpoint(args) => {
+                crate::commands::checkpoint::run(args, &output, cli.vault)
+            }
             CliCommands::Write(args) => crate::commands::write::run(args, &output, cli.vault),
             CliCommands::Mkdir(args) => crate::commands::mkdir::run(args, &output, cli.vault),
             CliCommands::Rm(args) => crate::commands::rm::run(args, &output, cli.vault),
@@ -273,6 +283,12 @@ impl Shell {
             CliCommands::Quota(args) => crate::commands::quota::run(args, &output, cli.vault),
             CliCommands::Audit(args) => crate::commands::audit::run(args, &output, cli.vault),
             CliCommands::Snapshot(args) => crate::commands::snapshot::run(args, &output, cli.vault),
+            #[cfg(feature = "fuse")]
+            CliCommands::Mount(args) => crate::commands::mount::run(args, &output),
+            #[cfg(feature = "fuse")]
+            CliCommands::Unmount(args) => crate::commands::unmount::run(args, &output),
+            #[cfg(feature = "fuse")]
+            CliCommands::Proxy(args) => crate::commands::proxy::run(args, &output, cli.vault),
             CliCommands::Pwd => {
                 if cli.json {
                     output.print_json(&serde_json::json!({"path": "/"}));
@@ -335,6 +351,7 @@ impl Shell {
         println!("  Agent Features:");
         println!("    quota              Manage quotas");
         println!("    audit              View audit log");
+        println!("    checkpoint         Manage checkpoints");
         println!("    snapshot           Manage snapshots");
         println!();
         println!("  Vault Management:");
@@ -343,7 +360,16 @@ impl Shell {
         println!("    vault use <N>      Switch vault");
         println!("    vault delete <N>   Delete vault");
         println!("    vault info [N]     Show vault info");
+        println!("    vault fork A B     Fork vault A into B");
         println!();
+        #[cfg(feature = "fuse")]
+        {
+            println!("  FUSE:");
+            println!("    mount V M          Mount vault V at mountpoint M");
+            println!("    unmount M          Unmount mountpoint M");
+            println!("    proxy [-- CMD]     Auto-mount a vault and run a command");
+            println!();
+        }
         println!("  Shell:");
         println!("    help               Show this help");
         println!("    clear              Clear screen");

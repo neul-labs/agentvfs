@@ -36,6 +36,9 @@ enum Commands {
     /// Read file contents
     Cat(commands::cat::CatArgs),
 
+    /// Manage vault checkpoints
+    Checkpoint(commands::checkpoint::CheckpointArgs),
+
     /// Write content to a file
     Write(commands::write::WriteArgs),
 
@@ -131,6 +134,10 @@ enum Commands {
     #[cfg(feature = "fuse")]
     Unmount(commands::unmount::UnmountArgs),
 
+    /// Auto-mount a vault and launch bash or another command inside it
+    #[cfg(feature = "fuse")]
+    Proxy(commands::proxy::ProxyArgs),
+
     /// Print current working directory (always /)
     Pwd,
 }
@@ -143,6 +150,7 @@ fn main() {
         Commands::Vault(args) => commands::vault::run(args, &output),
         Commands::Ls(args) => commands::ls::run(args, &output, cli.vault),
         Commands::Cat(args) => commands::cat::run(args, &output, cli.vault),
+        Commands::Checkpoint(args) => commands::checkpoint::run(args, &output, cli.vault),
         Commands::Write(args) => commands::write::run(args, &output, cli.vault),
         Commands::Mkdir(args) => commands::mkdir::run(args, &output, cli.vault),
         Commands::Rm(args) => commands::rm::run(args, &output, cli.vault),
@@ -176,6 +184,8 @@ fn main() {
         Commands::Mount(args) => commands::mount::run(args, &output),
         #[cfg(feature = "fuse")]
         Commands::Unmount(args) => commands::unmount::run(args, &output),
+        #[cfg(feature = "fuse")]
+        Commands::Proxy(args) => commands::proxy::run(args, &output, cli.vault),
         Commands::Pwd => {
             if cli.json {
                 output.print_json(&serde_json::json!({"path": "/"}));

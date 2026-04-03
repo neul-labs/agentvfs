@@ -69,11 +69,11 @@ shlex = "1"
 
 # FUSE filesystem (optional)
 fuser = { version = "0.14", optional = true }
-libc = { version = "0.2", optional = true }
+libc = { version = "0.2" }
 
 [features]
 default = []
-fuse = ["fuser", "libc"]
+fuse = ["fuser"]
 sled-backend = ["sled", "tantivy"]
 lmdb-backend = ["heed", "tantivy"]
 

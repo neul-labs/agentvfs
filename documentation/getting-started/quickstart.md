@@ -1,235 +1,99 @@
 # Quick Start
 
-This guide will get you up and running with VFS in about 5 minutes.
+This guide gets you from an empty install to an agent-ready workspace model quickly.
 
-## Create Your First Vault
+## 1. Create a Durable Workspace Root
 
-A **vault** is an independent virtual filesystem stored in a single database file.
+A **vault** is the durable root for a project workspace.
 
 ```bash
-# Create a new vault called "myproject"
 avfs vault create myproject
-```
-
-VFS automatically switches to your new vault. You can verify with:
-
-```bash
 avfs vault list
 ```
 
-Output:
-```
-* myproject    ~/.avfs/myproject.avfs    (current)
-```
+## 2. Create a Task Workspace
 
-## Basic File Operations
-
-### Create Directories
+For agent work, the preferred pattern is to create a cheap fork of the main vault and work in that fork.
 
 ```bash
-# Create a directory
-avfs mkdir /docs
-
-# Create nested directories with -p
-avfs mkdir -p /src/components/ui
+avfs vault fork myproject myproject-task-1 --use
 ```
 
-### Write Files
+This gives you an isolated task workspace without mutating the original vault directly.
+
+## 3. Save a Rollback Point
+
+Before risky work, save a checkpoint:
 
 ```bash
-# Write content to a file
-avfs write /docs/readme.txt "Hello, Virtual World!"
-
-# Append to a file
-avfs write -a /docs/readme.txt "Another line"
+avfs checkpoint save before-refactor
 ```
 
-### List Contents
+If the task goes wrong, restore it:
 
 ```bash
-# Simple listing
-avfs ls /docs
+avfs checkpoint restore before-refactor
+```
 
-# Detailed listing with sizes and dates
-avfs ls -l /docs
+## 4. Work Normally
 
-# Tree view
+Inside the fork, use the normal filesystem commands:
+
+```bash
+avfs mkdir /src
+avfs write /src/main.py "print('hello')"
+avfs cat /src/main.py
+avfs grep "hello" /
 avfs tree /
 ```
 
-### Read Files
+## 5. Inspect Changes
+
+Use versioning and diff tools to understand what changed:
 
 ```bash
-# Display file contents
-avfs cat /docs/readme.txt
-
-# With line numbers
-avfs cat -n /docs/readme.txt
+avfs log /src/main.py
 ```
 
-### Copy and Move
+Use `audit` and `stats` for a higher-level view:
 
 ```bash
-# Copy a file
-avfs cp /docs/readme.txt /docs/backup.txt
-
-# Move/rename a file
-avfs mv /docs/backup.txt /archive/readme-old.txt
-
-# Copy a directory recursively
-avfs cp -r /docs /docs-backup
+avfs audit --limit 20
+avfs stats
 ```
 
-### Delete
+## 6. Use a Real Directory View When Needed
+
+If you need normal CLI tools or editors, mount the workspace:
 
 ```bash
-# Remove a file
-avfs rm /archive/readme-old.txt
-
-# Remove a directory (must be empty)
-avfs rm /empty-dir
-
-# Remove recursively
-avfs rm -r /docs-backup
+mkdir -p /tmp/avfs-mount
+avfs mount myproject-task-1 /tmp/avfs-mount --foreground
 ```
 
-## Version History
+That mounted directory is the runtime substrate for the future proxy boundary.
 
-Every time you modify a file, VFS automatically creates a new version.
+## 7. Agent Model
 
-```bash
-# Make some changes
-avfs write /docs/readme.txt "Version 1"
-avfs write /docs/readme.txt "Version 2"
-avfs write /docs/readme.txt "Version 3"
+The intended long-term model is:
 
-# View version history
-avfs log /docs/readme.txt
+```text
+agent -> proxy boundary -> mounted forked workspace -> cli tools
 ```
 
-Output:
-```
-Version 3 (current) - 2024-01-15 10:32:45
-Version 2           - 2024-01-15 10:32:30
-Version 1           - 2024-01-15 10:32:15
-```
+Today you can compose that model manually with:
 
-### Restore Previous Versions
+- `vault fork`
+- `checkpoint`
+- `mount`
+- `audit`
 
-```bash
-# Read a specific version
-avfs cat -v 1 /docs/readme.txt
+The next step is to make `proxy` the main execution surface so the agent asks for one top-level command and the runtime handles workspace preparation automatically.
 
-# Restore to a previous version
-avfs checkout /docs/readme.txt -v 1
+## Next Steps
 
-# Revert to the immediately previous version
-avfs revert /docs/readme.txt
-```
-
-## Search
-
-### Full-Text Search
-
-```bash
-# Search all files for a term
-avfs search "hello"
-```
-
-### Regex Search (Grep)
-
-```bash
-# Search with regex patterns
-avfs grep "TODO|FIXME" /src/
-
-# Case-insensitive search
-avfs grep -i "error" /logs/
-```
-
-### Find Files
-
-```bash
-# Find by name pattern
-avfs find -n "*.txt"
-
-# Find by type (f=file, d=directory)
-avfs find -t f /docs/
-
-# Find files with a specific tag
-avfs find --tag important
-```
-
-## Tags and Metadata
-
-### Add Tags
-
-```bash
-# Tag a file
-avfs tag /docs/readme.txt important
-
-# List tags on a file
-avfs tag /docs/readme.txt --list
-```
-
-### Custom Metadata
-
-```bash
-# Set metadata
-avfs meta /docs/readme.txt author "John Doe"
-avfs meta /docs/readme.txt status "draft"
-
-# Get metadata
-avfs meta /docs/readme.txt author
-
-# List all metadata
-avfs meta /docs/readme.txt
-```
-
-## Interactive Shell
-
-For extended sessions, use the interactive shell:
-
-```bash
-avfs shell
-```
-
-In the shell, commands work without the `avfs` prefix:
-
-```
-[vault:myproject] / > ls
-docs/
-src/
-[vault:myproject] / > cd docs
-[vault:myproject] /docs > cat readme.txt
-Hello, Virtual World!
-[vault:myproject] /docs > exit
-```
-
-## Switch Between Vaults
-
-```bash
-# Create another vault
-avfs vault create another-project
-
-# Switch vaults
-avfs vault use myproject
-
-# List all vaults
-avfs vault list
-```
-
-## JSON Output
-
-All commands support JSON output for scripting:
-
-```bash
-avfs ls --json /docs
-avfs cat --json /docs/readme.txt
-```
-
-## What's Next?
-
-- [Core Concepts](concepts.md) - Deeper understanding of VFS
-- [File Operations](../user-guide/file-operations.md) - Complete file operations guide
-- [Versioning](../user-guide/versioning.md) - Master version control
-- [Command Reference](../reference/commands.md) - All commands documented
+- [Core Concepts](concepts.md)
+- [Vault Management](../user-guide/vaults.md)
+- [Agent Integration](../advanced/agent-integration.md)
+- [Proxy Boundary](../advanced/proxy-boundary.md)
+- [Architecture](../reference/architecture.md)
