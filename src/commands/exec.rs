@@ -153,10 +153,7 @@ pub fn run(args: ExecArgs, output: &Output, vault: Option<String>) -> Result<()>
 
     // Return error if command failed
     if exit_code != 0 {
-        return Err(crate::error::VfsError::Internal(format!(
-            "command exited with code {}",
-            exit_code
-        )));
+        return Err(crate::error::VfsError::ExitStatus(exit_code));
     }
 
     Ok(())

@@ -67,6 +67,24 @@ This works, but it is not the desired long-term interface because the agent has 
 - checkpoint creation
 - mount lifecycle
 
+## Current Proxy Contract
+
+The current higher-level path is `proxy exec`:
+
+```bash
+avfs --json --vault agent-workspace-task-1 proxy exec -- cargo test
+```
+
+That output is now versioned and shaped as a single execution envelope so agents can reliably parse one object per invocation, even when the proxied command exits non-zero.
+
+The envelope includes:
+
+- `schema_version`
+- `kind`
+- `success`
+- normalized request metadata
+- structured execution result
+
 ## Intended Proxy Responsibilities
 
 The proxy boundary should eventually own this lifecycle:
@@ -111,7 +129,7 @@ For agent tasks, use this pattern:
 
 ## What the Proxy Should Return
 
-The ideal top-level execution result includes:
+The top-level execution result should include:
 
 - policy decision
 - workspace or fork used

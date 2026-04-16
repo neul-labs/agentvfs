@@ -35,6 +35,8 @@ pub const SUBCOMMANDS: &[(&str, &[&str])] = &[
     ("quota", &["set", "clear"]),
     ("audit", &["clear"]),
     ("tag", &["--list", "--create", "--delete", "--rename"]),
+    #[cfg(feature = "fuse")]
+    ("proxy", &["exec"]),
 ];
 
 /// Shell helper that provides completion.

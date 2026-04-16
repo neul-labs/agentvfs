@@ -100,10 +100,20 @@ avfs unmount <mountpoint>
 ### Proxy
 
 ```bash
-avfs proxy ...
+avfs proxy exec [--cwd /path] [--mountpoint /tmp/mount] [--readonly] -- <command> ...
+avfs proxy exec --shell "npm test && npm run lint"
 ```
 
-`proxy` is the command family that should become the main agent-facing execution boundary. The intended end state is that the agent requests one top-level command and the proxy handles workspace preparation, policy, mount lifecycle, and reporting.
+`proxy exec` is the current agent-facing execution boundary. It accepts one top-level command, applies policy, prepares the mounted workspace, runs the command, and reports the result.
+
+With `--json`, `proxy exec` returns a versioned execution envelope that includes:
+
+- request metadata
+- policy decision
+- stdout and stderr
+- exit code and duration
+- checkpoint created
+- changed-files summary
 
 ## Shell Commands
 

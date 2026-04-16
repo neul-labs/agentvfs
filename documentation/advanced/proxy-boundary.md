@@ -96,10 +96,10 @@ The repository already includes most of the enabling primitives:
 - `vault fork`
 - `checkpoint`
 - `mount` / `unmount`
-- `proxy`
+- `proxy exec`
 - JSON output and audit support
 
-What remains is to pivot `proxy` into the primary agent-facing execution endpoint rather than treating it as only a shell convenience wrapper.
+What remains is to harden `proxy exec` into the primary agent-facing execution endpoint with stronger session lifecycle and richer reporting.
 
 ## Recommended External Shape
 

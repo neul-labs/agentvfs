@@ -301,7 +301,9 @@ impl Shell {
 
         // Handle errors (but don't exit the shell)
         if let Err(e) = result {
-            output.print_error(&e);
+            if !matches!(e, VfsError::ExitStatus(_)) {
+                output.print_error(&e);
+            }
         }
     }
 
@@ -367,7 +369,7 @@ impl Shell {
             println!("  FUSE:");
             println!("    mount V M          Mount vault V at mountpoint M");
             println!("    unmount M          Unmount mountpoint M");
-            println!("    proxy [-- CMD]     Auto-mount a vault and run a command");
+            println!("    proxy exec -- CMD  Run one top-level command via the proxy");
             println!();
         }
         println!("  Shell:");

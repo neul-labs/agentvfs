@@ -80,6 +80,10 @@ pub enum VfsError {
     #[error("json error: {0}")]
     Json(#[from] serde_json::Error),
 
+    /// External command exited with a non-zero status after already reporting structured output.
+    #[error("command exited with code {0}")]
+    ExitStatus(i32),
+
     /// Generic internal error.
     #[error("internal error: {0}")]
     Internal(String),
@@ -111,6 +115,7 @@ impl VfsError {
             VfsError::Storage(e) => ("StorageError", e.to_string(), None),
             VfsError::Io(e) => ("IoError", e.to_string(), None),
             VfsError::Json(e) => ("JsonError", e.to_string(), None),
+            VfsError::ExitStatus(code) => ("ExitStatus", self.to_string(), Some(code.to_string())),
             VfsError::Internal(s) => ("InternalError", s.clone(), None),
             #[cfg(feature = "sled-backend")]
             VfsError::Sled(e) => ("SledError", e.to_string(), None),

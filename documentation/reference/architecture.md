@@ -50,6 +50,7 @@ The current runtime split is implemented under `src/runtime/`.
 | `ExecutionRequest` | Normalized top-level command request passed into the proxy runtime | `src/runtime/execution.rs` |
 | `ExecutionDecision` | Policy outcome for that request | `src/runtime/execution.rs` |
 | `ExecutionResult` | Structured result returned after execution | `src/runtime/execution.rs` |
+| `ExecutionEnvelope` | Versioned external proxy-execution contract for JSON output | `src/runtime/execution.rs` |
 | `PolicyEngine` | Side-effect-free command classification and decision logic | `src/runtime/policy.rs` |
 | `WorkspaceService` | Resolve vaults, describe workspaces, open backends, create forks | `src/runtime/workspace.rs` |
 | `CheckpointService` | Create rollback points for risky work | `src/runtime/checkpoint.rs` |
@@ -113,6 +114,18 @@ This keeps policy inspectable and easy to audit.
 - the policy decision that governed execution
 
 That result shape is the basis for a stable agent-facing JSON contract.
+
+### `ExecutionEnvelope`
+
+`ExecutionEnvelope` is the current versioned JSON wrapper for `proxy exec`. It exists so the external machine-readable contract can evolve deliberately without forcing agents to parse ad hoc CLI output.
+
+It currently includes:
+
+- `schema_version`
+- `kind`
+- `success`
+- normalized request metadata
+- the structured `ExecutionResult`
 
 ## Policy Boundary
 
@@ -235,7 +248,7 @@ These rules matter for both performance and maintainability:
 - Keep mount lifecycle in `MountSession`, not in CLI subprocess wrappers.
 - Keep task-workspace lifecycle in `WorkspaceService`, not mixed into general vault CRUD forever.
 - Keep changed-file reporting in runtime/reporting services, not buried in command handlers.
-- Keep agent-facing execution contracts explicit through `ExecutionRequest` and `ExecutionResult`.
+- Keep agent-facing execution contracts explicit through `ExecutionRequest`, `ExecutionResult`, and `ExecutionEnvelope`.
 
 ## Current Limits
 

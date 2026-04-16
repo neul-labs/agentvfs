@@ -8,6 +8,7 @@ static GLOBAL: MiMalloc = MiMalloc;
 use clap::{Parser, Subcommand};
 
 use agentvfs::commands::{self, Output};
+use agentvfs::error::VfsError;
 
 #[derive(Parser)]
 #[command(name = "avfs")]
@@ -134,7 +135,7 @@ enum Commands {
     #[cfg(feature = "fuse")]
     Unmount(commands::unmount::UnmountArgs),
 
-    /// Auto-mount a vault and launch bash or another command inside it
+    /// Proxy-mediated workspace execution
     #[cfg(feature = "fuse")]
     Proxy(commands::proxy::ProxyArgs),
 
@@ -197,7 +198,16 @@ fn main() {
     };
 
     if let Err(e) = result {
-        output.print_error(&e);
-        std::process::exit(1);
+        match e {
+            VfsError::ExitStatus(code) => std::process::exit(normalize_exit_code(code)),
+            other => {
+                output.print_error(&other);
+                std::process::exit(1);
+            }
+        }
     }
+}
+
+fn normalize_exit_code(code: i32) -> i32 {
+    if code > 0 { code } else { 1 }
 }

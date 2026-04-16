@@ -132,9 +132,10 @@ Goal:
 
 Work:
 
-- [ ] define `proxy exec` as the main entrypoint rather than an initial proxy surface
+- [x] define `proxy exec` as the main entrypoint rather than an initial proxy surface
 - [x] accept both argv-style and shell-style command input
 - [x] return structured execution results
+- [x] add a versioned execution envelope for `--json` output
 - [x] make the proxy responsible for mount lifecycle
 
 ### 2. Add Top-Level Command Policy

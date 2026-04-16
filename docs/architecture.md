@@ -22,6 +22,8 @@ The core runtime abstractions are:
   - policy outcome for that request
 - `ExecutionResult`
   - structured execution output
+- `ExecutionEnvelope`
+  - versioned JSON contract for `proxy exec`
 - `PolicyEngine`
   - cheap classification and decision logic
 - `WorkspaceService`

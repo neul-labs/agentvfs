@@ -36,10 +36,10 @@ Today the repo already provides the underlying primitives needed for that bounda
 - `vault fork` for fast task workspace creation
 - `checkpoint ...` as a first-class alias over snapshots
 - `mount` / `unmount` for FUSE-backed workspace exposure
-- `proxy` as the start of a shell-facing runtime surface
+- `proxy exec` as the start of a policy-gated execution surface
 - `audit`, `quota`, `log`, `diff`, and JSON output for agent integration
 
-The next step is to pivot `proxy` from a shell convenience wrapper into the real policy-gated command execution surface.
+The next step is to harden `proxy exec` into the main agent-facing execution surface.
 
 ## Quick Start
 
@@ -91,7 +91,7 @@ This is intentionally a **top-level command boundary**. It is meant to be cheap 
 | **Rollback** | `checkpoint save`, `checkpoint restore`, `checkpoint list`, `snapshot ...` |
 | **Maintenance** | `stats`, `prune`, `gc`, `compact`, `maintain`, `audit`, `quota` |
 | **Shell** | `shell`, `aliases` |
-| **FUSE / Runtime** | `mount`, `unmount`, `proxy` |
+| **FUSE / Runtime** | `mount`, `unmount`, `proxy exec` |
 
 ## For AI Agents
 
@@ -121,6 +121,14 @@ The intended higher-level integration is a proxy boundary that handles:
 - mount lifecycle
 - execution
 - change reporting
+
+The current structured proxy path is:
+
+```bash
+avfs --json --vault agent-workspace-task-1 proxy exec -- cargo test
+```
+
+That JSON output is versioned and intended to stabilize into the agent-facing execution contract.
 
 See [Agent Integration](documentation/advanced/agent-integration.md) and [Proxy Boundary](documentation/advanced/proxy-boundary.md).
 

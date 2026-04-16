@@ -1,14 +1,28 @@
 //! proxy command - policy-gated execution against a mounted workspace.
 
-use clap::Args;
+use clap::{Args, Subcommand};
 
 use crate::commands::Output;
 use crate::error::{Result, VfsError};
-use crate::runtime::execution::{CheckpointMode, CommandSpec, ExecutionRequest};
+use crate::runtime::execution::{
+    CheckpointMode, CommandSpec, ExecutionEnvelope, ExecutionRequest,
+};
 use crate::runtime::proxy::ProxyRuntime;
 
 #[derive(Args)]
 pub struct ProxyArgs {
+    #[command(subcommand)]
+    pub command: ProxyCommand,
+}
+
+#[derive(Subcommand)]
+pub enum ProxyCommand {
+    /// Execute one top-level command inside a mounted workspace
+    Exec(ProxyExecArgs),
+}
+
+#[derive(Args)]
+pub struct ProxyExecArgs {
     /// Mount point to use (auto-generated if omitted)
     #[arg(long)]
     pub mountpoint: Option<String>,
@@ -35,12 +49,18 @@ pub struct ProxyArgs {
 }
 
 pub fn run(args: ProxyArgs, output: &Output, vault: Option<String>) -> Result<()> {
+    match args.command {
+        ProxyCommand::Exec(args) => run_exec(args, output, vault),
+    }
+}
+
+fn run_exec(args: ProxyExecArgs, output: &Output, vault: Option<String>) -> Result<()> {
     let command = match (args.shell, args.command) {
         (Some(shell), argv) if argv.is_empty() => CommandSpec::Shell(shell),
         (None, argv) if !argv.is_empty() => CommandSpec::Argv(argv),
         _ => {
             return Err(VfsError::InvalidInput(
-                "proxy requires either --shell <command> or -- <command> ...".to_string(),
+                "proxy exec requires either --shell <command> or -- <command> ...".to_string(),
             ))
         }
     };
@@ -54,10 +74,10 @@ pub fn run(args: ProxyArgs, output: &Output, vault: Option<String>) -> Result<()
         checkpoint_mode: CheckpointMode::Auto,
         command,
     };
-    let result = ProxyRuntime::new()?.execute(request)?;
+    let result = ProxyRuntime::new()?.execute(request.clone())?;
 
     if output.is_json() {
-        output.print_json(&result);
+        output.print_json(&ExecutionEnvelope::new(&request, result.clone()));
     } else {
         if !result.stdout.is_empty() {
             print!("{}", result.stdout);
@@ -65,13 +85,13 @@ pub fn run(args: ProxyArgs, output: &Output, vault: Option<String>) -> Result<()
         if !result.stderr.is_empty() {
             eprint!("{}", result.stderr);
         }
+        if result.exit_code != 0 {
+            eprintln!("(exit code: {})", result.exit_code);
+        }
     }
 
     if result.exit_code != 0 {
-        return Err(VfsError::Internal(format!(
-            "proxy command exited with code {}",
-            result.exit_code
-        )));
+        return Err(VfsError::ExitStatus(result.exit_code));
     }
 
     Ok(())
