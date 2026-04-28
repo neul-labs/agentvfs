@@ -1,5 +1,6 @@
 //! Workspace and fork lifecycle services.
 
+use std::collections::HashMap;
 use std::fs;
 #[cfg(target_os = "linux")]
 use std::fs::{File, OpenOptions};
@@ -8,7 +9,7 @@ use std::os::fd::AsRawFd;
 #[cfg(target_os = "macos")]
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use crate::error::{Result, VfsError};
 use crate::storage::{BackendType, VaultBackend};
@@ -17,6 +18,10 @@ use crate::vault::{Config, ForkInfo};
 #[derive(Clone)]
 pub struct WorkspaceService {
     config: Config,
+    /// Cache of open vault backends so multiple callers receive the same
+    /// `Arc<VaultBackend>` for a given path. Weak references let backends
+    /// be dropped when no `Arc` holders remain.
+    backend_cache: Arc<Mutex<HashMap<PathBuf, std::sync::Weak<VaultBackend>>>>,
 }
 
 #[derive(Debug, Clone)]
@@ -30,11 +35,15 @@ impl WorkspaceService {
     pub fn new() -> Result<Self> {
         Ok(Self {
             config: Config::new()?,
+            backend_cache: Arc::new(Mutex::new(HashMap::new())),
         })
     }
 
     pub fn with_config(config: Config) -> Self {
-        Self { config }
+        Self {
+            config,
+            backend_cache: Arc::new(Mutex::new(HashMap::new())),
+        }
     }
 
     pub fn current_name(&self) -> Result<Option<String>> {
@@ -69,7 +78,36 @@ impl WorkspaceService {
 
     pub fn open(&self, name: &str) -> Result<Arc<VaultBackend>> {
         let descriptor = self.describe(name)?;
-        Ok(Arc::new(VaultBackend::open(&descriptor.path, descriptor.backend)?))
+        let path = descriptor.path;
+
+        let mut cache = self.backend_cache.lock().unwrap();
+
+        // Prune dead entries and check for an existing live backend.
+        let mut to_remove = Vec::new();
+        let mut existing = None;
+        for (k, weak) in cache.iter() {
+            if let Some(arc) = weak.upgrade() {
+                if k == &path {
+                    existing = Some(arc);
+                    break;
+                }
+            } else {
+                to_remove.push(k.clone());
+            }
+        }
+        for k in to_remove {
+            cache.remove(&k);
+        }
+
+        if let Some(arc) = existing {
+            return Ok(arc);
+        }
+
+        let backend = Arc::new(VaultBackend::open(
+            &path,
+            descriptor.backend)?);
+        cache.insert(path, Arc::downgrade(&backend));
+        Ok(backend)
     }
 
     pub fn fork(&self, source: &str, name: &str) -> Result<ForkInfo> {

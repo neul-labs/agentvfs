@@ -55,6 +55,8 @@ OPTIONS:
     --skip-tests         Skip running tests
     --no-tag             Skip creating git tag (for re-releases)
     --publish            Also publish to crates.io
+    --publish-npm        Also publish npm wrapper to registry
+    --publish-pypi       Also publish PyPI wrapper to registry
     --targets TARGETS    Comma-separated list of targets to build
     --help               Show this help message
 
@@ -75,6 +77,9 @@ EXAMPLES:
     # Release and publish to crates.io
     ./release.sh --version 0.2.0 --publish
 
+    # Release and publish to all registries
+    ./release.sh --version 0.2.0 --publish --publish-npm --publish-pypi
+
     # Build only specific targets
     ./release.sh --version 0.2.0 --targets "x86_64-unknown-linux-gnu,x86_64-apple-darwin"
 EOF
@@ -88,6 +93,8 @@ SKIP_BUILD=false
 SKIP_TESTS=false
 SKIP_TAG=false
 PUBLISH=false
+PUBLISH_NPM=false
+PUBLISH_PYPI=false
 CUSTOM_TARGETS=""
 
 while [[ $# -gt 0 ]]; do
@@ -114,6 +121,14 @@ while [[ $# -gt 0 ]]; do
             ;;
         --publish)
             PUBLISH=true
+            shift
+            ;;
+        --publish-npm)
+            PUBLISH_NPM=true
+            shift
+            ;;
+        --publish-pypi)
+            PUBLISH_PYPI=true
             shift
             ;;
         --targets)
@@ -289,7 +304,8 @@ generate_checksums() {
     local checksum_file="checksums.txt"
     rm -f "$checksum_file"
 
-    for archive in *.tar.gz *.zip 2>/dev/null; do
+    shopt -s nullglob
+    for archive in *.tar.gz *.zip; do
         if [[ -f "$archive" ]]; then
             if command -v sha256sum &> /dev/null; then
                 sha256sum "$archive" >> "$checksum_file"
@@ -298,6 +314,7 @@ generate_checksums() {
             fi
         fi
     done
+    shopt -u nullglob
 
     popd > /dev/null
 
@@ -414,6 +431,61 @@ publish_crate() {
     success "Published to crates.io"
 }
 
+# Publish to npm
+publish_npm() {
+    if [[ "$PUBLISH_NPM" != true ]]; then
+        info "Skipping npm publish (use --publish-npm to enable)"
+        return
+    fi
+
+    if [[ "$DRY_RUN" == true ]]; then
+        warn "Dry run - would publish npm wrapper"
+        return
+    fi
+
+    if ! command -v npm &> /dev/null; then
+        error "npm not found. Please install Node.js."
+    fi
+
+    info "Publishing npm wrapper..."
+
+    cd packaging/npm
+    npm version "${VERSION}" --no-git-tag-version
+    npm publish --access public
+    cd ../..
+
+    success "Published npm wrapper"
+}
+
+# Publish to PyPI
+publish_pypi() {
+    if [[ "$PUBLISH_PYPI" != true ]]; then
+        info "Skipping PyPI publish (use --publish-pypi to enable)"
+        return
+    fi
+
+    if [[ "$DRY_RUN" == true ]]; then
+        warn "Dry run - would publish PyPI wrapper"
+        return
+    fi
+
+    if ! command -v python3 &> /dev/null && ! command -v python &> /dev/null; then
+        error "python not found. Please install Python."
+    fi
+
+    info "Publishing PyPI wrapper..."
+
+    cd packaging/pypi
+    sed -i.bak "s/^version = \"[^\"]*\"/version = \"${VERSION}\"/" pyproject.toml
+    rm -f pyproject.toml.bak
+
+    python -m build
+    twine upload dist/*
+    cd ../..
+
+    success "Published PyPI wrapper"
+}
+
 # Extract release notes from CHANGELOG.md
 extract_changelog() {
     local version="$1"
@@ -480,6 +552,9 @@ main() {
     echo ""
     echo "  Version: ${VERSION}"
     echo "  Dry run: ${DRY_RUN}"
+    echo "  Publish crate: ${PUBLISH}"
+    echo "  Publish npm: ${PUBLISH_NPM}"
+    echo "  Publish pypi: ${PUBLISH_PYPI}"
     echo ""
 
     check_requirements
@@ -490,6 +565,8 @@ main() {
     create_tag
     create_release
     publish_crate
+    publish_npm
+    publish_pypi
 
     echo ""
     success "Release v${VERSION} complete!"

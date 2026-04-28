@@ -5,7 +5,7 @@ use clap::{Args, Subcommand};
 use crate::commands::Output;
 use crate::error::{Result, VfsError};
 use crate::runtime::execution::{
-    CheckpointMode, CommandSpec, ExecutionEnvelope, ExecutionRequest,
+    CheckpointMode, CommandSpec, ExecutionEnvelope, ExecutionRequest, ExecutionTimeout,
 };
 use crate::runtime::proxy::ProxyRuntime;
 
@@ -39,6 +39,10 @@ pub struct ProxyExecArgs {
     #[arg(long)]
     pub keep_mount: bool,
 
+    /// Timeout in milliseconds (0 disables timeout)
+    #[arg(long, default_value = "300000")]
+    pub timeout: u64,
+
     /// Execute a shell command via $SHELL -lc
     #[arg(long, conflicts_with = "command")]
     pub shell: Option<String>,
@@ -65,6 +69,12 @@ fn run_exec(args: ProxyExecArgs, output: &Output, vault: Option<String>) -> Resu
         }
     };
 
+    let timeout = if args.timeout == 0 {
+        ExecutionTimeout::None
+    } else {
+        ExecutionTimeout::Millis(args.timeout)
+    };
+
     let request = ExecutionRequest {
         vault,
         cwd: args.cwd,
@@ -73,6 +83,7 @@ fn run_exec(args: ProxyExecArgs, output: &Output, vault: Option<String>) -> Resu
         mountpoint: args.mountpoint.map(std::path::PathBuf::from),
         checkpoint_mode: CheckpointMode::Auto,
         command,
+        timeout,
     };
     let result = ProxyRuntime::new()?.execute(request.clone())?;
 
@@ -87,6 +98,9 @@ fn run_exec(args: ProxyExecArgs, output: &Output, vault: Option<String>) -> Resu
         }
         if result.exit_code != 0 {
             eprintln!("(exit code: {})", result.exit_code);
+        }
+        if result.timed_out {
+            eprintln!("(timed out)");
         }
     }
 

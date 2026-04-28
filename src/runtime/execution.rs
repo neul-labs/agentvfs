@@ -19,6 +19,22 @@ pub enum CheckpointMode {
     Never,
 }
 
+/// Timeout configuration for proxy execution.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ExecutionTimeout {
+    /// No timeout (wait forever).
+    None,
+    /// Timeout after the given number of milliseconds.
+    Millis(u64),
+}
+
+impl Default for ExecutionTimeout {
+    fn default() -> Self {
+        ExecutionTimeout::Millis(300_000) // 5 minutes default
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct ExecutionRequest {
     pub vault: Option<String>,
@@ -28,6 +44,7 @@ pub struct ExecutionRequest {
     pub mountpoint: Option<PathBuf>,
     pub checkpoint_mode: CheckpointMode,
     pub command: CommandSpec,
+    pub timeout: ExecutionTimeout,
 }
 
 impl ExecutionRequest {
@@ -112,6 +129,7 @@ pub struct ExecutionRequestView {
     pub checkpoint_mode: CheckpointMode,
     pub command: String,
     pub command_mode: CommandMode,
+    pub timeout: ExecutionTimeout,
 }
 
 impl From<&ExecutionRequest> for ExecutionRequestView {
@@ -128,6 +146,7 @@ impl From<&ExecutionRequest> for ExecutionRequestView {
             checkpoint_mode: request.checkpoint_mode,
             command: request.command_display(),
             command_mode: request.command_mode(),
+            timeout: request.timeout,
         }
     }
 }
@@ -154,6 +173,80 @@ pub struct ExecutionResult {
     pub checkpoint: Option<String>,
     pub changed_files: Vec<String>,
     pub decision: ExecutionDecision,
+    pub state: ProxyExecutionState,
+    pub timed_out: bool,
+}
+
+/// Explicit state machine for the proxy execution lifecycle.
+///
+/// Tracks every phase of a proxy execution so failures can be pinpointed
+/// and partial states are observable for debugging and recovery.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProxyExecutionState {
+    Initial,
+    Validating,
+    Resolving,
+    PolicyEvaluating,
+    BaselineCapturing,
+    Checkpointing,
+    Mounting,
+    Executing,
+    Summarizing,
+    Completed,
+    CleaningUp,
+    Failed,
+}
+
+impl ProxyExecutionState {
+    /// Returns true if `self` can legally transition to `next`.
+    pub fn can_transition_to(&self, next: ProxyExecutionState) -> bool {
+        use ProxyExecutionState::*;
+        match (*self, next) {
+            (Initial, Validating)
+            | (Validating, Resolving)
+            | (Resolving, PolicyEvaluating)
+            | (PolicyEvaluating, BaselineCapturing)
+            | (PolicyEvaluating, CleaningUp)
+            | (PolicyEvaluating, Failed)
+            | (BaselineCapturing, Checkpointing)
+            | (BaselineCapturing, Mounting)
+            | (Checkpointing, Mounting)
+            | (Mounting, Executing)
+            | (Mounting, CleaningUp)
+            | (Executing, Summarizing)
+            | (Executing, CleaningUp)
+            | (Summarizing, Completed)
+            | (Summarizing, CleaningUp)
+            | (CleaningUp, Failed)
+            | (CleaningUp, Completed)
+            | (_, Failed) => true,
+            _ => false,
+        }
+    }
+
+    /// Returns true if the state represents a terminal outcome.
+    pub fn is_terminal(&self) -> bool {
+        matches!(self, ProxyExecutionState::Completed | ProxyExecutionState::Failed)
+    }
+
+    /// Human-readable label for the state.
+    pub fn label(&self) -> &'static str {
+        match self {
+            ProxyExecutionState::Initial => "initial",
+            ProxyExecutionState::Validating => "validating request",
+            ProxyExecutionState::Resolving => "resolving vault",
+            ProxyExecutionState::PolicyEvaluating => "evaluating policy",
+            ProxyExecutionState::BaselineCapturing => "capturing baseline",
+            ProxyExecutionState::Checkpointing => "creating checkpoint",
+            ProxyExecutionState::Mounting => "mounting workspace",
+            ProxyExecutionState::Executing => "executing command",
+            ProxyExecutionState::Summarizing => "summarizing changes",
+            ProxyExecutionState::Completed => "completed",
+            ProxyExecutionState::CleaningUp => "cleaning up",
+            ProxyExecutionState::Failed => "failed",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -201,6 +294,7 @@ mod tests {
             mountpoint: Some(PathBuf::from("/tmp/avfs-task-1")),
             checkpoint_mode: CheckpointMode::Auto,
             command: CommandSpec::Argv(vec!["cargo".to_string(), "test".to_string()]),
+            timeout: super::ExecutionTimeout::Millis(300_000),
         };
 
         let result = ExecutionResult {
@@ -221,6 +315,8 @@ mod tests {
                 categories: vec![CommandCategory::Mutating],
                 reason: None,
             },
+            state: super::ProxyExecutionState::Completed,
+            timed_out: false,
         };
 
         let value = serde_json::to_value(ExecutionEnvelope::new(&request, result)).unwrap();

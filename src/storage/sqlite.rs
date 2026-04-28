@@ -926,6 +926,375 @@ impl SqliteBackend {
         Ok(())
     }
 
+    // ==================== Atomic Operations ====================
+    /// Atomic file write: stores content, creates or updates file entry,
+    /// versions the previous state, and updates the search index in a single
+    /// SQLite transaction.
+    pub fn write_file_atomic(
+        &self,
+        parent_id: i64,
+        name: &str,
+        content: &[u8],
+        path: &str,
+    ) -> Result<i64> {
+        use sha2::{Digest, Sha256};
+
+        let mut hasher = Sha256::new();
+        hasher.update(content);
+        let hash: [u8; 32] = hasher.finalize().into();
+        let size = content.len() as u64;
+
+        let conn = self.conn.lock().unwrap();
+        let now = Utc::now().timestamp();
+
+        conn.execute("BEGIN IMMEDIATE", [])?;
+
+        let result = (|| -> Result<i64> {
+            // Store content (idempotent)
+            conn.execute(
+                "INSERT OR IGNORE INTO contents (hash, data, size, ref_count) VALUES (?, ?, ?, 1)",
+                params![hash.as_slice(), content, size as i64],
+            )?;
+
+            // Check if file already exists
+            let existing_id: Option<i64> = conn
+                .query_row(
+                    "SELECT id FROM files WHERE parent_id = ? AND name = ?",
+                    params![parent_id, name],
+                    |row| row.get(0),
+                )
+                .optional()?;
+
+            let file_id = if let Some(id) = existing_id {
+                // Snapshot current state into a version
+                let current_hash: Option<Vec<u8>> = conn
+                    .query_row(
+                        "SELECT content_hash FROM files WHERE id = ?",
+                        [id],
+                        |row| row.get(0),
+                    )
+                    .optional()?;
+
+                if let Some(h) = current_hash {
+                    let next_version: i64 = conn.query_row(
+                        "SELECT COALESCE(MAX(version_number), 0) + 1 FROM file_versions WHERE file_id = ?",
+                        [id],
+                        |row| row.get(0),
+                    )?;
+
+                    conn.execute(
+                        "INSERT INTO file_versions (file_id, version_number, content_hash, size, created_at)
+                         VALUES (?, ?, ?, ?, ?)",
+                        params![id, next_version, h.as_slice(), size as i64, now],
+                    )?;
+                }
+
+                // Update existing file
+                conn.execute(
+                    "UPDATE files SET content_hash = ?, size = ?, modified_at = ? WHERE id = ?",
+                    params![hash.as_slice(), size as i64, now, id],
+                )?;
+
+                id
+            } else {
+                // Create new file entry
+                conn.execute(
+                    "INSERT INTO files (parent_id, name, file_type, content_hash, size, created_at, modified_at)
+                     VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    params![parent_id, name, FileType::File.to_i64(), hash.as_slice(), size as i64, now, now],
+                )?;
+
+                let file_id = conn.last_insert_rowid();
+
+                conn.execute(
+                    "INSERT INTO paths (path, file_id) VALUES (?, ?)",
+                    params![path, file_id],
+                )?;
+
+                // Create initial version
+                conn.execute(
+                    "INSERT INTO file_versions (file_id, version_number, content_hash, size, created_at)
+                     VALUES (?, 1, ?, ?, ?)",
+                    params![file_id, hash.as_slice(), size as i64, now],
+                )?;
+
+                file_id
+            };
+
+            // Update FTS index: always delete old entry, then re-insert if valid UTF-8
+            conn.execute("DELETE FROM fts_content WHERE rowid = ?", [file_id])?;
+            if let Ok(text) = String::from_utf8(content.to_vec()) {
+                conn.execute(
+                    "INSERT INTO fts_content (rowid, path, content) VALUES (?, ?, ?)",
+                    params![file_id, path, text],
+                )?;
+            }
+
+            Ok(file_id)
+        })();
+
+        match result {
+            Ok(id) => {
+                conn.execute("COMMIT", [])?;
+                Ok(id)
+            }
+            Err(e) => {
+                let _ = conn.execute("ROLLBACK", []);
+                Err(e)
+            }
+        }
+    }
+
+    /// Atomic directory creation: checks for duplicates and creates the
+    /// directory entry + path in a single SQLite transaction.
+    pub fn create_directory_atomic(
+        &self,
+        parent_id: i64,
+        name: &str,
+        path: &str,
+    ) -> Result<i64> {
+        let conn = self.conn.lock().unwrap();
+        let now = Utc::now().timestamp();
+
+        conn.execute("BEGIN IMMEDIATE", [])?;
+
+        let result = (|| -> Result<i64> {
+            let exists: bool = conn
+                .query_row(
+                    "SELECT 1 FROM files WHERE parent_id = ? AND name = ?",
+                    params![parent_id, name],
+                    |_| Ok(true),
+                )
+                .optional()?
+                .unwrap_or(false);
+
+            if exists {
+                return Err(VfsError::AlreadyExists(PathBuf::from(path)));
+            }
+
+            conn.execute(
+                "INSERT INTO files (parent_id, name, file_type, size, created_at, modified_at)
+                 VALUES (?, ?, ?, 0, ?, ?)",
+                params![parent_id, name, FileType::Directory.to_i64(), now, now],
+            )?;
+
+            let dir_id = conn.last_insert_rowid();
+
+            conn.execute(
+                "INSERT INTO paths (path, file_id) VALUES (?, ?)",
+                params![path, dir_id],
+            )?;
+
+            Ok(dir_id)
+        })();
+
+        match result {
+            Ok(id) => {
+                conn.execute("COMMIT", [])?;
+                Ok(id)
+            }
+            Err(e) => {
+                let _ = conn.execute("ROLLBACK", []);
+                Err(e)
+            }
+        }
+    }
+
+    /// Atomic delete: removes paths and the file entry (with CASCADE) in a
+    /// single SQLite transaction.
+    pub fn delete_entry_atomic(&self, id: i64, path: &str) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+
+        conn.execute("BEGIN IMMEDIATE", [])?;
+
+        let result = (|| -> Result<()> {
+            conn.execute(
+                "DELETE FROM paths WHERE path = ? OR path LIKE ?",
+                params![path, format!("{}/%", path)],
+            )?;
+
+            conn.execute("DELETE FROM files WHERE id = ?", [id])?;
+
+            Ok(())
+        })();
+
+        match result {
+            Ok(()) => {
+                conn.execute("COMMIT", [])?;
+                Ok(())
+            }
+            Err(e) => {
+                let _ = conn.execute("ROLLBACK", []);
+                Err(e)
+            }
+        }
+    }
+
+    /// Atomic move: updates the file entry, swaps paths, and rebuilds child
+    /// paths inside a single SQLite transaction.
+    pub fn move_entry_atomic(
+        &self,
+        id: i64,
+        new_parent_id: i64,
+        new_name: &str,
+        old_path: &str,
+        new_path: &str,
+    ) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        let now = Utc::now().timestamp();
+
+        conn.execute("BEGIN IMMEDIATE", [])?;
+
+        let result = (|| -> Result<()> {
+            // Update file entry
+            conn.execute(
+                "UPDATE files SET parent_id = ?, name = ?, modified_at = ? WHERE id = ?",
+                params![new_parent_id, new_name, now, id],
+            )?;
+
+            // Delete old paths
+            conn.execute(
+                "DELETE FROM paths WHERE path = ? OR path LIKE ?",
+                params![old_path, format!("{}/%", old_path)],
+            )?;
+
+            // Insert new path for the moved entry itself
+            conn.execute(
+                "INSERT INTO paths (path, file_id) VALUES (?, ?)",
+                params![new_path, id],
+            )?;
+
+            // If directory, rebuild all descendant paths
+            let is_dir: bool = conn
+                .query_row(
+                    "SELECT file_type = 1 FROM files WHERE id = ?",
+                    [id],
+                    |row| row.get::<_, bool>(0),
+                )
+                .optional()?
+                .unwrap_or(false);
+
+            if is_dir {
+                Self::rebuild_child_paths_locked(&conn, id, new_path)?;
+            }
+
+            Ok(())
+        })();
+
+        match result {
+            Ok(()) => {
+                conn.execute("COMMIT", [])?;
+                Ok(())
+            }
+            Err(e) => {
+                let _ = conn.execute("ROLLBACK", []);
+                Err(e)
+            }
+        }
+    }
+
+    /// Recursive helper for rebuilding child paths while already holding the
+    /// connection lock (used inside a transaction).
+    fn rebuild_child_paths_locked(
+        conn: &Connection,
+        parent_id: i64,
+        parent_path: &str,
+    ) -> Result<()> {
+        let mut stmt = conn.prepare(
+            "SELECT id, name, file_type FROM files WHERE parent_id = ? ORDER BY name",
+        )?;
+
+        let children: Vec<(i64, String, bool)> = stmt
+            .query_map([parent_id], |row| {
+                let id: i64 = row.get(0)?;
+                let name: String = row.get(1)?;
+                let file_type: i64 = row.get(2)?;
+                Ok((id, name, file_type == 1))
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+
+        drop(stmt);
+
+        for (child_id, child_name, is_dir) in children {
+            let child_path = if parent_path == "/" {
+                format!("/{}", child_name)
+            } else {
+                format!("{}/{}", parent_path, child_name)
+            };
+
+            conn.execute(
+                "INSERT OR REPLACE INTO paths (path, file_id) VALUES (?, ?)",
+                params![&child_path, child_id],
+            )?;
+
+            if is_dir {
+                Self::rebuild_child_paths_locked(conn, child_id, &child_path)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Atomic copy: inserts the new file entry, its path, and increments the
+    /// content reference count in a single SQLite transaction.
+    pub fn copy_file_atomic(
+        &self,
+        src: &FileEntry,
+        new_parent_id: i64,
+        new_name: &str,
+        new_path: &str,
+    ) -> Result<i64> {
+        let conn = self.conn.lock().unwrap();
+        let now = Utc::now().timestamp();
+
+        conn.execute("BEGIN IMMEDIATE", [])?;
+
+        let result = (|| -> Result<i64> {
+            let hash_slice: Option<&[u8]> = src.content_hash.as_ref().map(|h| h.as_slice());
+
+            conn.execute(
+                "INSERT INTO files (parent_id, name, file_type, content_hash, size, created_at, modified_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)",
+                params![
+                    new_parent_id,
+                    new_name,
+                    FileType::File.to_i64(),
+                    hash_slice,
+                    src.size as i64,
+                    now,
+                    now
+                ],
+            )?;
+
+            let file_id = conn.last_insert_rowid();
+
+            conn.execute(
+                "INSERT INTO paths (path, file_id) VALUES (?, ?)",
+                params![new_path, file_id],
+            )?;
+
+            if let Some(ref hash) = src.content_hash {
+                conn.execute(
+                    "UPDATE contents SET ref_count = ref_count + 1 WHERE hash = ?",
+                    [hash.as_slice()],
+                )?;
+            }
+
+            Ok(file_id)
+        })();
+
+        match result {
+            Ok(id) => {
+                conn.execute("COMMIT", [])?;
+                Ok(id)
+            }
+            Err(e) => {
+                let _ = conn.execute("ROLLBACK", []);
+                Err(e)
+            }
+        }
+    }
+
     /// Search content using FTS5.
     pub fn search_content(
         &self,

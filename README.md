@@ -34,8 +34,19 @@ The proxy boundary governs what commands run, creates checkpoints, and reports f
 
 ### Install
 
+**With cargo:**
 ```bash
 cargo install agentvfs
+```
+
+**With npm:**
+```bash
+npm install -g @neullabs/agentvfs
+```
+
+**With pip:**
+```bash
+pip install agentvfs
 ```
 
 ### Basic Usage
@@ -61,19 +72,17 @@ avfs proxy exec -- python /src/main.py
 ### Agent Integration (Python)
 
 ```python
-import subprocess, json
+from agentvfs import AVFS
 
-def avfs(*args):
-    result = subprocess.run(["avfs", "--json"] + list(args), capture_output=True, text=True)
-    return json.loads(result.stdout) if result.stdout else None
+avfs = AVFS("agent-workspace")
 
 # Create isolated workspace
-avfs("vault", "create", "agent-workspace")
-avfs("vault", "fork", "agent-workspace", "task-001", "--use")
+avfs.create_vault("agent-workspace")
+avfs.fork_vault("agent-workspace", "task-001")
 
 # Checkpoint, execute, get structured result
-avfs("checkpoint", "save", "pre-change")
-result = avfs("proxy", "exec", "--", "cargo", "test")
+avfs.checkpoint_save("pre-change")
+result = avfs.proxy_exec("cargo", "test")
 # result contains: stdout, stderr, exit_code, changed_files
 ```
 
@@ -85,10 +94,18 @@ See the [full documentation](https://docs.neullabs.com/agentvfs) for more integr
 2. **Proxy checks policy** → Is this command allowed?
 3. **Checkpoint created** → Automatic rollback point if configured
 4. **Workspace mounted** → FUSE exposes the vault as a real directory
-5. **Command executes** → Standard tools run normally
+5. **Command executes** → Standard tools run normally, with configurable timeouts
 6. **Result returned** → stdout, stderr, exit code, and changed files list
 
 This is a **top-level command boundary**—cheap, practical, and designed for agent orchestration rather than syscall-level tracing.
+
+## Production Features
+
+- **Atomic transactions** — SQLite backend uses `BEGIN IMMEDIATE` for all filesystem mutations, eliminating race conditions during concurrent access
+- **Execution timeouts** — Proxy commands support millisecond-level timeouts with automatic SIGKILL escalation
+- **Mount session state machine** — Explicit mount/unmount lifecycle with double-unmount protection and automatic cleanup on drop
+- **Backend deduplication** — Weak-reference cache ensures only one backend handle per vault, preventing resource leaks
+- **Open file state tracking** — FUSE file handles track `Open → Dirty → Persisting → Flushed` states to eliminate persist races
 
 ## Commands
 

@@ -1,0 +1,44 @@
+{
+  "name": "@neullabs/agentvfs",
+  "version": "0.1.0",
+  "description": "Workspace runtime and execution boundary for AI agents",
+  "main": "index.js",
+  "bin": {
+    "avfs": "./bin/avfs",
+    "agentvfs": "./bin/avfs"
+  },
+  "scripts": {
+    "postinstall": "node install.js",
+    "preuninstall": "node uninstall.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/neul-labs/agentvfs.git"
+  },
+  "keywords": [
+    "vfs",
+    "filesystem",
+    "agent",
+    "ai",
+    "workspace",
+    "sandbox"
+  ],
+  "author": "Neul Labs",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/neul-labs/agentvfs/issues"
+  },
+  "homepage": "https://docs.neullabs.com/agentvfs",
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ]
+}

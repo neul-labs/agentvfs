@@ -525,32 +525,75 @@ avfs meta --import metadata.json             # Import
 
 ## External Commands
 
-### exec - Run external command on file
+### exec - Run external command on a virtual file
 
 ```bash
-avfs exec [OPTIONS] '<COMMAND>' <PATH>...
+avfs exec [OPTIONS] <VFS_PATH> -- <COMMAND>...
 ```
 
-Extracts file to temp, runs command, re-imports result. Supports glob patterns.
+Extracts a virtual file to a temp file on the host filesystem, runs an external command, and optionally re-imports the result.
 
 **Options:**
-- `-n, --no-reimport` - Run command but don't re-import result
-- `-v, --verbose` - Show temp file location and command
-- `--dry-run` - Show what would be executed
-- `-e, --env <KEY=VALUE>` - Set environment variable
-- `--timeout <SECONDS>` - Kill command after timeout (default: 60)
-- `--parallel <N>` - Process N files concurrently
-- `--fail-fast` - Stop on first error (with globs)
-- `--shell` - Use shell interpretation (less safe)
-- `--allow-network` - Allow network access
+- `--reimport` - Read the temp file back into the vault after the command completes
+- `--stdin` - Pass vault file content via stdin instead of as a temp file argument
 
 **Examples:**
 ```bash
-avfs exec 'sed -i s/foo/bar/g' /docs/file.txt
-avfs exec 'sort' /data/names.txt
-avfs exec 'jq .' /config/settings.json
-avfs exec 'gzip' '/logs/*.log'         # Glob pattern
-avfs exec --parallel 4 'process' '/data/*.csv'
+# Process and re-import
+avfs exec --reimport /docs/file.txt -- sed -i s/foo/bar/g {}
+
+# Read-only analysis
+avfs exec /src/main.rs -- grep "TODO" {}
+
+# Stdin mode
+avfs exec --stdin /data/large.txt -- gzip > output.gz
+```
+
+Use `{}` in the command to substitute the temp file path. If omitted, the temp path is appended.
+
+### proxy exec - Policy-gated execution inside a mounted workspace
+
+```bash
+avfs proxy exec [OPTIONS] -- <COMMAND>...
+```
+
+Mounts the vault as a real directory, runs a command inside it, and reports filesystem deltas.
+
+**Options:**
+- `--mountpoint <PATH>` - Mount point to use (auto-generated if omitted)
+- `--cwd <PATH>` - Working directory inside the mounted vault (default: `/`)
+- `--readonly` - Mount the vault read-only
+- `--keep-mount` - Keep the mount active after the command exits
+- `--timeout <MILLIS>` - Kill command after timeout (default: 300000, 0 disables)
+- `--shell <COMMAND>` - Execute a shell command via `$SHELL -lc`
+
+**Examples:**
+```bash
+avfs proxy exec -- cargo test
+avfs proxy exec --shell "make build"
+avfs proxy exec --readonly -- cat /docs/readme.txt
+avfs proxy exec --timeout 600000 -- ./long-build.sh
+```
+
+**Output (with `--json`):**
+```json
+{
+  "schema_version": 1,
+  "kind": "proxy_exec_result",
+  "success": true,
+  "request": { ... },
+  "result": {
+    "vault": "myproject",
+    "command": "cargo test",
+    "exit_code": 0,
+    "stdout": "...",
+    "stderr": "...",
+    "changed_files": ["/src/lib.rs"],
+    "checkpoint": "checkpoint-20260404-120000",
+    "timed_out": false,
+    "state": "completed"
+  }
+}
 ```
 
 ### pipe - Pipe operations (via shell)
@@ -564,6 +607,34 @@ avfs cat <PATH> | <command> | avfs write <PATH>
 avfs cat /data.txt | sort | uniq | avfs write /sorted.txt
 avfs cat /log.txt | grep ERROR | avfs write /errors.txt
 ```
+
+## Mount Commands (requires `fuse` feature)
+
+### mount - Mount vault as real directory
+
+```bash
+avfs mount [OPTIONS] <MOUNTPOINT>
+```
+
+Mounts the active vault as a FUSE filesystem at the given path.
+
+**Options:**
+- `--readonly` - Mount read-only
+- `--allow-other` - Allow other users to access the mount
+
+**Examples:**
+```bash
+avfs mount /mnt/myvault
+avfs mount --readonly /mnt/myvault-ro
+```
+
+### unmount - Unmount a vault
+
+```bash
+avfs unmount <MOUNTPOINT>
+```
+
+Unmounts a previously mounted vault.
 
 ## Maintenance Commands
 

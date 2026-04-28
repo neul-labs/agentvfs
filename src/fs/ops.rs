@@ -6,7 +6,7 @@ use std::sync::Arc;
 use crate::error::{Result, VfsError};
 use crate::fs::entry::{DirEntry, FileEntry, FileType};
 use crate::fs::path;
-use crate::storage::VaultBackend;
+use crate::storage::{VaultBackend};
 
 /// Virtual filesystem operations.
 pub struct FileSystem {
@@ -79,34 +79,51 @@ impl FileSystem {
             return Err(VfsError::NotADirectory(PathBuf::from(&parent_path)));
         }
 
-        // Store content and get hash
-        let hash = self.backend.write_content(content)?;
-        let size = content.len() as u64;
-
-        // Check if file exists
-        if let Some(file_id) = self.backend.get_file_id(parent.id, &name)? {
-            // File exists - create version snapshot of CURRENT state before updating
-            let current = self.backend.get_entry_by_id(file_id)?;
-            if let Some(current_hash) = current.content_hash {
-                self.backend
-                    .create_version(file_id, &current_hash, current.size)?;
+        // Use backend-specific atomic path when available
+        match self.backend.as_ref() {
+            VaultBackend::Sqlite(backend) => {
+                backend.write_file_atomic(parent.id, &name, content, &normalized)?;
+                Ok(())
             }
-
-            // Update existing file with new content
-            self.backend.update_file(file_id, &hash, size)?;
-        } else {
-            // Create new file
-            let file_id = self
-                .backend
-                .create_file(parent.id, &name, &hash, size, &normalized)?;
-
-            // Create initial version (version 1)
-            self.backend.create_version(file_id, &hash, size)?;
+            #[cfg(feature = "sled-backend")]
+            VaultBackend::Sled(backend) => {
+                let hash = backend.write_content(content)?;
+                let size = content.len() as u64;
+                if let Some(file_id) = backend.get_file_id(parent.id, &name)? {
+                    let current = backend.get_entry_by_id(file_id)?.ok_or_else(|| {
+                        VfsError::Internal(format!("file entry not found: id={file_id}"))
+                    })?;
+                    if let Some(current_hash) = current.content_hash {
+                        backend.create_version(file_id, current_hash, current.size)?;
+                    }
+                    backend.update_file(file_id, hash, size)?;
+                } else {
+                    let file_id = backend.create_file(parent.id, &name, hash, size)?;
+                    backend.create_version(file_id, hash, size)?;
+                }
+                // Sled manages its own search index
+                Ok(())
+            }
+            #[cfg(feature = "lmdb-backend")]
+            VaultBackend::Lmdb(backend) => {
+                let hash = backend.write_content(content)?;
+                let size = content.len() as u64;
+                if let Some(file_id) = backend.get_file_id(parent.id, &name)? {
+                    let current = backend.get_entry_by_id(file_id)?.ok_or_else(|| {
+                        VfsError::Internal(format!("file entry not found: id={file_id}"))
+                    })?;
+                    if let Some(current_hash) = current.content_hash {
+                        backend.create_version(file_id, current_hash, current.size)?;
+                    }
+                    backend.update_file(file_id, hash, size)?;
+                } else {
+                    let file_id = backend.create_file(parent.id, &name, hash, size)?;
+                    backend.create_version(file_id, hash, size)?;
+                }
+                // LMDB manages its own search index
+                Ok(())
+            }
         }
-
-        self.backend.sync_file_index(&normalized)?;
-
-        Ok(())
     }
 
     /// Create a directory.
@@ -126,16 +143,29 @@ impl FileSystem {
             return Err(VfsError::NotADirectory(PathBuf::from(&parent_path)));
         }
 
-        // Check if name already exists
-        if self.backend.name_exists(parent.id, &name)? {
-            return Err(VfsError::AlreadyExists(PathBuf::from(&normalized)));
+        // Use backend-specific atomic path when available
+        match self.backend.as_ref() {
+            VaultBackend::Sqlite(backend) => {
+                backend.create_directory_atomic(parent.id, &name, &normalized)?;
+                Ok(())
+            }
+            #[cfg(feature = "sled-backend")]
+            VaultBackend::Sled(backend) => {
+                if backend.name_exists(parent.id, &name)? {
+                    return Err(VfsError::AlreadyExists(PathBuf::from(&normalized)));
+                }
+                backend.create_directory(parent.id, &name)?;
+                Ok(())
+            }
+            #[cfg(feature = "lmdb-backend")]
+            VaultBackend::Lmdb(backend) => {
+                if backend.name_exists(parent.id, &name)? {
+                    return Err(VfsError::AlreadyExists(PathBuf::from(&normalized)));
+                }
+                backend.create_directory(parent.id, &name)?;
+                Ok(())
+            }
         }
-
-        // Create directory
-        self.backend
-            .create_directory(parent.id, &name, &normalized)?;
-
-        Ok(())
     }
 
     /// Create a directory and all parent directories.
@@ -182,9 +212,20 @@ impl FileSystem {
 
         self.remove_index_subtree(&normalized)?;
 
-        // Delete entry (CASCADE handles children)
-        self.backend
-            .delete_entry(entry.id, &normalized, recursive)?;
+        // Use backend-specific atomic path when available
+        match self.backend.as_ref() {
+            VaultBackend::Sqlite(backend) => {
+                backend.delete_entry_atomic(entry.id, &normalized)?;
+            }
+            #[cfg(feature = "sled-backend")]
+            VaultBackend::Sled(backend) => {
+                backend.delete_entry(entry.id, recursive)?;
+            }
+            #[cfg(feature = "lmdb-backend")]
+            VaultBackend::Lmdb(backend) => {
+                backend.delete_entry(entry.id, recursive)?;
+            }
+        }
 
         Ok(())
     }
@@ -226,8 +267,18 @@ impl FileSystem {
         }
 
         let new_path = path::join(&parent_path, &name)?;
-        self.backend
-            .copy_file(src_entry, parent.id, &name, &new_path)?;
+
+        match self.backend.as_ref() {
+            VaultBackend::Sqlite(backend) => {
+                backend.copy_file_atomic(src_entry, parent.id, &name, &new_path)?;
+            }
+            #[cfg(any(feature = "sled-backend", feature = "lmdb-backend"))]
+            _ => {
+                self.backend
+                    .copy_file(src_entry, parent.id, &name, &new_path)?;
+            }
+        }
+
         self.backend.sync_file_index(&new_path)?;
 
         Ok(())
@@ -278,8 +329,16 @@ impl FileSystem {
             if child.is_dir() {
                 self.copy_dir(&child_src_path, &child_dst_path)?;
             } else {
-                self.backend
-                    .copy_file(&child, new_dir.id, &child.name, &child_dst_path)?;
+                match self.backend.as_ref() {
+                    VaultBackend::Sqlite(backend) => {
+                        backend.copy_file_atomic(&child, new_dir.id, &child.name, &child_dst_path)?;
+                    }
+                    #[cfg(any(feature = "sled-backend", feature = "lmdb-backend"))]
+                    _ => {
+                        self.backend
+                            .copy_file(&child, new_dir.id, &child.name, &child_dst_path)?;
+                    }
+                }
                 self.backend.sync_file_index(&child_dst_path)?;
             }
         }
@@ -333,13 +392,26 @@ impl FileSystem {
             )));
         }
 
-        // Move entry
-        self.backend
-            .move_entry(src_entry.id, parent.id, &name, &src_normalized, &new_path)?;
+        // Use backend-specific atomic path when available
+        match self.backend.as_ref() {
+            VaultBackend::Sqlite(backend) => {
+                backend.move_entry_atomic(
+                    src_entry.id,
+                    parent.id,
+                    &name,
+                    &src_normalized,
+                    &new_path,
+                )?;
+            }
+            #[cfg(any(feature = "sled-backend", feature = "lmdb-backend"))]
+            _ => {
+                self.backend
+                    .move_entry(src_entry.id, parent.id, &name, &src_normalized, &new_path)?;
 
-        // If directory, rebuild child paths
-        if src_entry.is_dir() {
-            self.backend.rebuild_child_paths(src_entry.id, &new_path)?;
+                if src_entry.is_dir() {
+                    self.backend.rebuild_child_paths(src_entry.id, &new_path)?;
+                }
+            }
         }
 
         self.sync_index_subtree(&new_path)?;

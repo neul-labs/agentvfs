@@ -24,6 +24,10 @@ The core runtime abstractions are:
   - structured execution output
 - `ExecutionEnvelope`
   - versioned JSON contract for `proxy exec`
+- `ExecutionTimeout`
+  - configurable timeout with `None` or `Millis(u64)` variants (default: 300s)
+- `ProxyExecutionState`
+  - explicit FSM for proxy execution lifecycle (`Validating → Mounting → Executing → Completed`)
 - `PolicyEngine`
   - cheap classification and decision logic
 - `WorkspaceService`
@@ -33,9 +37,9 @@ The core runtime abstractions are:
 - `ChangeSummaryService`
   - changed-files summary after execution
 - `MountSession`
-  - mount/unmount lifecycle for a workspace view
+  - mount/unmount lifecycle for a workspace view with explicit `MountState` transitions
 - `ProxyRuntime`
-  - orchestration across policy, workspace, checkpoint, mount, execution, and reporting
+  - orchestration across policy, workspace, checkpoint, mount, execution, and reporting with configurable timeouts
 
 These live under `src/runtime/` and define the main extension seams for the system.
 
@@ -70,12 +74,15 @@ In more detail:
 - Mount lifecycle should stay in `MountSession`, not in CLI-to-CLI subprocess flows.
 - Workspace lifecycle should stay separate from general vault CRUD.
 - Storage backends should not absorb policy or execution concerns.
+- All SQLite mutations are atomic transactions (`BEGIN IMMEDIATE` / `COMMIT` / `ROLLBACK`).
+- Proxy execution timeouts escalate from SIGTERM to SIGKILL with dedicated pipe drain threads.
+- Open file handles must transition through explicit states to prevent double-persist races.
 
 ## Current Limits
 
 - The runtime does not try to observe every subprocess launched from inside scripts.
-- Persistent proxy-managed mount sessions are not implemented yet.
-- FUSE-backed runtime pieces remain feature-gated.
+- FUSE-backed runtime pieces remain feature-gated behind `--features fuse`.
+- LMDB and Sled backends do not yet have atomic transaction wrappers (SQLite is recommended for production).
 
 ## Reference
 

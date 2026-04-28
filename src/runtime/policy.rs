@@ -133,6 +133,7 @@ mod tests {
     use crate::runtime::execution::{CommandSpec, ExecutionRequest, PolicyAction, CheckpointMode};
 
     fn argv(parts: &[&str]) -> ExecutionRequest {
+        use crate::runtime::execution::ExecutionTimeout;
         ExecutionRequest {
             vault: Some("test".to_string()),
             cwd: "/".to_string(),
@@ -141,6 +142,7 @@ mod tests {
             mountpoint: None,
             checkpoint_mode: CheckpointMode::Auto,
             command: CommandSpec::Argv(parts.iter().map(|s| s.to_string()).collect()),
+            timeout: ExecutionTimeout::Millis(300_000),
         }
     }
 

@@ -11,10 +11,30 @@ use crate::fs::FileSystem;
 use crate::mount::VfsFilesystem;
 use crate::storage::VaultBackend;
 
+/// Lifecycle state of a mount session.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MountState {
+    Unmounted,
+    Mounting,
+    Mounted,
+    Unmounting,
+}
+
+impl MountState {
+    pub fn is_mounted(&self) -> bool {
+        matches!(self, MountState::Mounted)
+    }
+
+    pub fn is_terminal(&self) -> bool {
+        matches!(self, MountState::Unmounted | MountState::Unmounting)
+    }
+}
+
 pub struct MountSession {
     mountpoint: PathBuf,
     session: Option<BackgroundSession>,
     owned_mountpoint: bool,
+    state: MountState,
 }
 
 impl MountSession {
@@ -32,13 +52,18 @@ impl MountSession {
         let vfs_fs = VfsFilesystem::new(fs, readonly);
         let options = mount_options(workspace_name, readonly, allow_other);
 
+        let mut state = MountState::Mounting;
+
         let session = fuser::spawn_mount2(vfs_fs, &mountpoint, &options)
             .map_err(|e| VfsError::Internal(format!("mount failed: {}", e)))?;
+
+        state = MountState::Mounted;
 
         Ok(Self {
             mountpoint,
             session: Some(session),
             owned_mountpoint: create_mountpoint,
+            state,
         })
     }
 
@@ -63,16 +88,42 @@ impl MountSession {
     pub fn mountpoint(&self) -> &Path {
         &self.mountpoint
     }
-}
 
-impl Drop for MountSession {
-    fn drop(&mut self) {
+    pub fn state(&self) -> MountState {
+        self.state
+    }
+
+    /// Explicitly unmount the session, returning an error if unmount fails.
+    /// Safe to call multiple times; subsequent calls are no-ops.
+    pub fn unmount(&mut self) -> Result<()> {
+        if self.state.is_terminal() {
+            return Ok(());
+        }
+
+        self.state = MountState::Unmounting;
+
         if let Some(session) = self.session.take() {
             drop(session);
         }
 
         if self.owned_mountpoint {
-            let _ = fs::remove_dir(&self.mountpoint);
+            if let Err(e) = fs::remove_dir(&self.mountpoint) {
+                // Only report error if directory still exists
+                if self.mountpoint.exists() {
+                    return Err(VfsError::Io(e));
+                }
+            }
+        }
+
+        self.state = MountState::Unmounted;
+        Ok(())
+    }
+}
+
+impl Drop for MountSession {
+    fn drop(&mut self) {
+        if let Err(e) = self.unmount() {
+            eprintln!("avfs: mount session cleanup failed: {}", e);
         }
     }
 }

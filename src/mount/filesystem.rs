@@ -17,6 +17,16 @@ use super::attr::{entry_to_attr, root_attr, BLOCK_SIZE, TTL};
 /// Root inode number (FUSE convention).
 const ROOT_INODE: u64 = 1;
 
+/// State of an open file handle.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum OpenFileState {
+    Open,
+    Dirty,
+    Persisting,
+    Flushed,
+    Closed,
+}
+
 /// Information about an open file.
 struct OpenFile {
     /// Path to the file (for operations that need it).
@@ -25,8 +35,8 @@ struct OpenFile {
     write: bool,
     /// Buffered file content for write handles.
     buffer: Option<Vec<u8>>,
-    /// Whether the buffered content differs from storage.
-    dirty: bool,
+    /// Current state of the open file handle.
+    state: OpenFileState,
 }
 
 /// VFS FUSE filesystem implementation.
@@ -115,26 +125,33 @@ impl VfsFilesystem {
     }
 
     fn persist_open_file(&self, fh: u64) -> Result<(), VfsError> {
-        let pending = {
-            let open_files = self.open_files.lock().unwrap();
-            let Some(open_file) = open_files.get(&fh) else {
-                return Ok(());
-            };
-
-            if !open_file.write || !open_file.dirty {
-                return Ok(());
-            }
-
-            let buffer = open_file.buffer.clone().unwrap_or_default();
-            let path = open_file.path.clone();
-            Some((path, buffer))
+        let mut open_files = self.open_files.lock().unwrap();
+        let Some(open_file) = open_files.get_mut(&fh) else {
+            return Ok(());
         };
 
-        if let Some((path, buffer)) = pending {
-            self.fs.write_file(&path, &buffer)?;
-            if let Some(open_file) = self.open_files.lock().unwrap().get_mut(&fh) {
-                open_file.dirty = false;
+        if !open_file.write || open_file.state != OpenFileState::Dirty {
+            return Ok(());
+        }
+
+        open_file.state = OpenFileState::Persisting;
+        let buffer = open_file.buffer.clone().unwrap_or_default();
+        let path = open_file.path.clone();
+
+        // Drop the lock before the potentially-slow storage write to avoid
+        // blocking other FUSE callbacks. The state is now Persisting so any
+        // concurrent flush/release will see that and skip.
+        drop(open_files);
+
+        self.fs.write_file(&path, &buffer)?;
+
+        let mut open_files = self.open_files.lock().unwrap();
+        if let Some(open_file) = open_files.get_mut(&fh) {
+            if open_file.state == OpenFileState::Persisting {
+                open_file.state = OpenFileState::Flushed;
             }
+            // If state is Dirty again, another write raced in; it will be
+            // handled by the next flush/release.
         }
 
         Ok(())
@@ -338,7 +355,7 @@ impl Filesystem for VfsFilesystem {
                         path,
                         write: is_write,
                         buffer,
-                        dirty: false,
+                        state: OpenFileState::Open,
                     },
                 );
 
@@ -446,7 +463,7 @@ impl Filesystem for VfsFilesystem {
         };
 
         Self::apply_write(buffer, offset as usize, data);
-        open_file.dirty = true;
+        open_file.state = OpenFileState::Dirty;
         reply.written(data.len() as u32);
     }
 
@@ -520,7 +537,7 @@ impl Filesystem for VfsFilesystem {
                                 path: child_path,
                                 write: true,
                                 buffer: Some(Vec::new()),
-                                dirty: false,
+                                state: OpenFileState::Open,
                             },
                         );
 
@@ -860,7 +877,7 @@ impl Filesystem for VfsFilesystem {
                 if let Some(open_file) = open_files.get_mut(&fh) {
                     if let Some(buffer) = open_file.buffer.as_mut() {
                         buffer.resize(new_size as usize, 0);
-                        open_file.dirty = true;
+                        open_file.state = OpenFileState::Dirty;
                     } else {
                         reply.error(libc::EBADF);
                         return;

@@ -1,0 +1,40 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "agentvfs"
+version = "0.1.0"
+description = "Workspace runtime and execution boundary for AI agents"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [
+    { name = "Neul Labs" }
+]
+keywords = ["vfs", "filesystem", "agent", "ai", "workspace", "sandbox"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Filesystems",
+]
+requires-python = ">=3.8"
+dependencies = []
+
+[project.urls]
+Homepage = "https://docs.neullabs.com/agentvfs"
+Repository = "https://github.com/neul-labs/agentvfs"
+Documentation = "https://docs.neullabs.com/agentvfs"
+"Bug Tracker" = "https://github.com/neul-labs/agentvfs/issues"
+
+[project.scripts]
+avfs = "agentvfs.cli:main"
+agentvfs = "agentvfs.cli:main"
