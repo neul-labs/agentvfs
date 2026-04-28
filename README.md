@@ -123,6 +123,16 @@ This is a **top-level command boundary**—cheap, practical, and designed for ag
 
 Run `avfs --help` for the full command reference, or see the [command documentation](https://docs.neullabs.com/agentvfs/reference/commands).
 
+## Benchmarks
+
+See [BENCHMARKS.md](BENCHMARKS.md) for detailed performance data across SQLite, Sled, and LMDB backends—including single-vault throughput, concurrent agent workloads, and multi-vault scale tests.
+
+Highlights (SQLite on Apple M3 Pro):
+- **Reads:** 109 MiB/s (1 KB) → 4.5 GiB/s (1 MB)
+- **Writes:** 9.2 MiB/s (1 KB) → 163.6 MiB/s (1 MB)
+- **Search:** Sub-millisecond FTS across 100 documents
+- **Scale:** ~16,500 ops/sec across 100 independent vaults
+
 ## Documentation
 
 Full documentation is available at **[docs.neullabs.com/agentvfs](https://docs.neullabs.com/agentvfs)**
