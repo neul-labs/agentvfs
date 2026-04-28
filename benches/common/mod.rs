@@ -22,6 +22,7 @@ pub struct BackendConfig {
 
 /// Get all available backends for benchmarking.
 pub fn available_backends() -> Vec<BackendConfig> {
+    #[allow(unused_mut)]
     let mut backends = vec![BackendConfig {
         backend_type: BackendType::Sqlite,
         name: "sqlite",

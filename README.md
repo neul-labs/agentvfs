@@ -1,6 +1,6 @@
 # agentvfs
 
-**Workspace runtime and execution boundary for AI agents**
+<p align="center"><strong>Workspace runtime and execution boundary for AI agents</strong></p>
 
 <p align="center">
   <a href="https://crates.io/crates/agentvfs"><img src="https://img.shields.io/crates/v/agentvfs.svg" alt="Crates.io"></a>
@@ -24,11 +24,13 @@ For **agent developers** and **architects** building autonomous systems:
 | **Standard Tooling** | Mount workspaces as real directories—`git`, `cargo`, `npm` just work |
 | **Structured Output** | JSON responses designed for agent integration |
 
+The proxy boundary mediates between your agent and the workspace:
+
 ```text
 agent → proxy boundary → mounted forked workspace → cli tools
 ```
 
-The proxy boundary governs what commands run, creates checkpoints, and reports filesystem deltas back to your agent.
+It governs what commands run, creates checkpoints, and reports filesystem deltas back to your agent.
 
 ## Quick Start
 
