@@ -43,7 +43,7 @@ cargo install agentvfs
 
 **With npm:**
 ```bash
-npm install -g @neullabs/agentvfs
+npm install -g agentvfs
 ```
 
 **With pip:**

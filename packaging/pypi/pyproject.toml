@@ -35,6 +35,9 @@ Repository = "https://github.com/neul-labs/agentvfs"
 Documentation = "https://docs.neullabs.com/agentvfs"
 "Bug Tracker" = "https://github.com/neul-labs/agentvfs/issues"
 
+# Only `agentvfs` is registered as a console-script. We deliberately do NOT
+# register `avfs` here: pip would generate a Python shim named `avfs`, and if
+# pip's bin dir is ahead of cargo's on PATH, agentvfs/cli.py's shutil.which
+# call would resolve to that shim and recurse into itself.
 [project.scripts]
-avfs = "agentvfs.cli:main"
 agentvfs = "agentvfs.cli:main"

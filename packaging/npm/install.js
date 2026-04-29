@@ -80,10 +80,13 @@ async function main() {
   const archiveName = `${BINARY_NAME}-${version}-${platform}.${ext}`;
   const url = `https://github.com/${REPO}/releases/download/v${version}/${archiveName}`;
 
-  const binDir = path.join(__dirname, 'bin');
-  const archivePath = path.join(binDir, archiveName);
+  // The JS shim lives in bin/ (shipped in the tarball); the native binary
+  // goes into vendor/ so npm's bin-symlink machinery doesn't get confused
+  // by two files named avfs in bin/.
+  const vendorDir = path.join(__dirname, 'vendor');
+  const archivePath = path.join(vendorDir, archiveName);
 
-  fs.mkdirSync(binDir, { recursive: true });
+  fs.mkdirSync(vendorDir, { recursive: true });
 
   console.log(`Downloading avfs v${version} for ${platform}...`);
   console.log(`URL: ${url}`);
@@ -104,9 +107,9 @@ async function main() {
   }
 
   console.log('Extracting...');
-  extract(archivePath, binDir);
+  extract(archivePath, vendorDir);
 
-  const binaryPath = path.join(binDir, getBinaryName());
+  const binaryPath = path.join(vendorDir, getBinaryName());
   if (fs.existsSync(binaryPath)) {
     fs.chmodSync(binaryPath, 0o755);
     console.log(`Installed avfs to ${binaryPath}`);

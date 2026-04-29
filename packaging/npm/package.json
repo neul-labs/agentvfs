@@ -1,12 +1,18 @@
 {
-  "name": "@neullabs/agentvfs",
-  "version": "0.1.0",
+  "name": "agentvfs",
+  "version": "0.1.3",
   "description": "Workspace runtime and execution boundary for AI agents",
   "main": "index.js",
   "bin": {
-    "avfs": "./bin/avfs",
-    "agentvfs": "./bin/avfs"
+    "avfs": "bin/avfs.js",
+    "agentvfs": "bin/avfs.js"
   },
+  "files": [
+    "bin/",
+    "install.js",
+    "uninstall.js",
+    "README.md"
+  ],
   "scripts": {
     "postinstall": "node install.js",
     "preuninstall": "node uninstall.js"
