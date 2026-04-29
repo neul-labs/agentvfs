@@ -1,46 +1,49 @@
 #!/bin/bash
 # AgentVFS (avfs) Release Script
 #
-# This script automates the release process:
-# 1. Run tests
-# 2. Build for all platforms
-# 3. Create checksums
-# 4. Create GitHub release
-# 5. Optionally publish to crates.io
+# All Rust building, crate publishing, and GitHub release creation happens in
+# .github/workflows/release.yml when a v* tag is pushed. This script handles
+# only the local steps:
+#
+#   1. Bump the version in Cargo.toml
+#   2. (Optional) Run the test suite as a pre-tag sanity gate
+#   3. Create + push the v${VERSION} tag (which triggers CI)
+#   4. Wait for the CI-built GitHub release to have all platform artifacts
+#   5. Publish the npm and PyPI wrapper packages (which download those artifacts
+#      at install time, so they MUST come after CI finishes)
 #
 # Usage:
-#   ./release.sh --version 0.2.0
+#   ./release.sh --version 0.2.0 --publish-npm --publish-pypi
 #   ./release.sh --version 0.2.0 --dry-run
-#   ./release.sh --version 0.2.0 --publish
+#   ./release.sh --version 0.2.0 --skip-wait --publish-npm   # release already exists
 
 set -e
 
-# Configuration
 REPO="neul-labs/agentvfs"
 BINARY_NAME="avfs"
 
-# Target platforms
-TARGETS=(
-    "x86_64-unknown-linux-gnu:linux-x86_64:tar.gz"
-    "aarch64-unknown-linux-gnu:linux-aarch64:tar.gz"
-    "x86_64-apple-darwin:darwin-x86_64:tar.gz"
-    "aarch64-apple-darwin:darwin-aarch64:tar.gz"
-    "x86_64-pc-windows-gnu:windows-x86_64:zip"
+# Files the CI workflow must publish to the GitHub release before we publish
+# the npm/PyPI wrappers. Keep this list in sync with the build-release matrix
+# in .github/workflows/release.yml.
+EXPECTED_ARCHIVES=(
+    "linux-x86_64.tar.gz"
+    "linux-aarch64.tar.gz"
+    "darwin-x86_64.tar.gz"
+    "darwin-aarch64.tar.gz"
+    "windows-x86_64.zip"
 )
 
-# Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-info() { echo -e "${BLUE}[INFO]${NC} $1"; }
+info()    { echo -e "${BLUE}[INFO]${NC} $1"; }
 success() { echo -e "${GREEN}[OK]${NC} $1"; }
-warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
-error() { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
+warn()    { echo -e "${YELLOW}[WARN]${NC} $1"; }
+error()   { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
 
-# Show help
 show_help() {
     cat << EOF
 AgentVFS Release Script
@@ -50,521 +53,220 @@ USAGE:
 
 OPTIONS:
     --version VERSION    Version to release (required)
-    --dry-run            Build but don't upload to GitHub
-    --skip-build         Skip building, use existing artifacts
-    --skip-tests         Skip running tests
-    --no-tag             Skip creating git tag (for re-releases)
-    --publish            Also publish to crates.io
-    --publish-npm        Also publish npm wrapper to registry
-    --publish-pypi       Also publish PyPI wrapper to registry
-    --targets TARGETS    Comma-separated list of targets to build
+    --dry-run            Don't tag, push, or publish — print what would happen
+    --skip-tests         Skip running 'cargo test' before tagging
+    --no-tag             Don't create/push a tag (use when re-running publishes)
+    --skip-wait          Don't wait for the CI release to populate (assumes done)
+    --publish-npm        Publish the npm wrapper after the CI release is ready
+    --publish-pypi       Publish the PyPI wrapper after the CI release is ready
     --help               Show this help message
 
-TARGETS:
-    x86_64-unknown-linux-gnu   Linux x86_64
-    aarch64-unknown-linux-gnu  Linux ARM64
-    x86_64-apple-darwin        macOS x86_64
-    aarch64-apple-darwin       macOS ARM64 (Apple Silicon)
-    x86_64-pc-windows-gnu      Windows x86_64
+CI HANDLES:
+    - Building all platform binaries (linux/darwin/windows, x86_64/aarch64)
+    - Creating the GitHub release and uploading archives + checksums
+    - Publishing to crates.io
+
+LOCAL HANDLES:
+    - Version bump, tag/push, npm wrapper publish, PyPI wrapper publish
 
 EXAMPLES:
-    # Full release
+    # Full local-driven release: tag, wait for CI, publish wrappers
+    ./release.sh --version 0.2.0 --publish-npm --publish-pypi
+
+    # Just cut the tag and let CI run; publish wrappers later
     ./release.sh --version 0.2.0
 
-    # Dry run (build only)
-    ./release.sh --version 0.2.0 --dry-run
-
-    # Release and publish to crates.io
-    ./release.sh --version 0.2.0 --publish
-
-    # Release and publish to all registries
-    ./release.sh --version 0.2.0 --publish --publish-npm --publish-pypi
-
-    # Build only specific targets
-    ./release.sh --version 0.2.0 --targets "x86_64-unknown-linux-gnu,x86_64-apple-darwin"
+    # CI release already exists — only push the npm wrapper
+    ./release.sh --version 0.2.0 --no-tag --skip-wait --publish-npm
 EOF
     exit 0
 }
 
-# Parse arguments
 VERSION=""
 DRY_RUN=false
-SKIP_BUILD=false
 SKIP_TESTS=false
 SKIP_TAG=false
-PUBLISH=false
+SKIP_WAIT=false
 PUBLISH_NPM=false
 PUBLISH_PYPI=false
-CUSTOM_TARGETS=""
 
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --version)
-            VERSION="$2"
-            shift 2
-            ;;
-        --dry-run)
-            DRY_RUN=true
-            shift
-            ;;
-        --skip-build)
-            SKIP_BUILD=true
-            shift
-            ;;
-        --skip-tests)
-            SKIP_TESTS=true
-            shift
-            ;;
-        --no-tag)
-            SKIP_TAG=true
-            shift
-            ;;
-        --publish)
-            PUBLISH=true
-            shift
-            ;;
-        --publish-npm)
-            PUBLISH_NPM=true
-            shift
-            ;;
-        --publish-pypi)
-            PUBLISH_PYPI=true
-            shift
-            ;;
-        --targets)
-            CUSTOM_TARGETS="$2"
-            shift 2
-            ;;
-        --help|-h)
-            show_help
-            ;;
-        *)
-            error "Unknown option: $1"
-            ;;
+        --version)      VERSION="$2"; shift 2 ;;
+        --dry-run)      DRY_RUN=true; shift ;;
+        --skip-tests)   SKIP_TESTS=true; shift ;;
+        --no-tag)       SKIP_TAG=true; shift ;;
+        --skip-wait)    SKIP_WAIT=true; shift ;;
+        --publish-npm)  PUBLISH_NPM=true; shift ;;
+        --publish-pypi) PUBLISH_PYPI=true; shift ;;
+        --help|-h)      show_help ;;
+        *)              error "Unknown option: $1" ;;
     esac
 done
 
-if [[ -z "$VERSION" ]]; then
-    error "Version is required. Use --version VERSION"
-fi
+[[ -z "$VERSION" ]] && error "Version is required. Use --version VERSION"
 
-# Setup
-DIST_DIR="dist"
-ARTIFACTS_DIR="$DIST_DIR/artifacts"
-
-# Check required tools
 check_requirements() {
     info "Checking requirements..."
-
-    if ! command -v cargo &> /dev/null; then
-        error "cargo not found. Please install Rust."
+    command -v git  &>/dev/null || error "git not found"
+    command -v gh   &>/dev/null || error "gh (GitHub CLI) not found: https://cli.github.com"
+    command -v cargo &>/dev/null || error "cargo not found (needed for tests + version bump)"
+    if [[ "$PUBLISH_NPM" == true ]]; then
+        command -v npm &>/dev/null || error "npm not found (needed for --publish-npm)"
     fi
-
-    if ! command -v gh &> /dev/null; then
-        error "gh (GitHub CLI) not found. Please install it: https://cli.github.com"
+    if [[ "$PUBLISH_PYPI" == true ]]; then
+        command -v python3 &>/dev/null || command -v python &>/dev/null \
+            || error "python not found (needed for --publish-pypi)"
+        command -v twine &>/dev/null || error "twine not found (pip install twine)"
     fi
-
-    if ! command -v cross &> /dev/null; then
-        warn "cross not found. Installing..."
-        cargo install cross
-    fi
-
-    if ! command -v tar &> /dev/null; then
-        error "tar not found"
-    fi
-
     success "All requirements met"
 }
 
-# Update version in Cargo.toml
 update_version() {
-    info "Updating version in Cargo.toml to ${VERSION}..."
-
-    local current_version
-    current_version=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
-
-    if [[ "$current_version" == "$VERSION" ]]; then
+    info "Updating Cargo.toml version to ${VERSION}..."
+    local current
+    current=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+    if [[ "$current" == "$VERSION" ]]; then
         info "Version already set to ${VERSION}"
         return
     fi
-
     sed -i.bak "s/^version = \".*\"/version = \"${VERSION}\"/" Cargo.toml
     rm -f Cargo.toml.bak
-
-    success "Version updated"
+    success "Cargo.toml updated"
 }
 
-# Run tests
 run_tests() {
     if [[ "$SKIP_TESTS" == true ]]; then
         warn "Skipping tests"
         return
     fi
-
     info "Running tests..."
-
     cargo test --all-features
-
     success "All tests passed"
 }
 
-# Build for a target
-build_target() {
-    local target="$1"
-    local platform="$2"
-    local ext="$3"
-
-    info "Building for ${target}..."
-
-    local build_dir="$ARTIFACTS_DIR/${platform}"
-    mkdir -p "$build_dir"
-
-    # Use cross for cross-compilation
-    if [[ "$target" == *"linux"* && "$(uname -s)" != "Linux" ]] ||
-       [[ "$target" == *"darwin"* && "$(uname -s)" != "Darwin" ]] ||
-       [[ "$target" == *"windows"* && "$(uname -s)" != *"MINGW"* ]]; then
-        cross build --release --target "$target"
+create_tag() {
+    if [[ "$SKIP_TAG" == true ]]; then
+        warn "Skipping git tag (--no-tag)"
+        return
+    fi
+    if [[ "$DRY_RUN" == true ]]; then
+        warn "Dry run — would tag and push v${VERSION}"
+        return
+    fi
+    if git rev-parse "v${VERSION}" &>/dev/null; then
+        warn "Tag v${VERSION} already exists locally"
     else
-        cargo build --release --target "$target"
+        info "Creating git tag v${VERSION}..."
+        git tag -a "v${VERSION}" -m "Release v${VERSION}"
     fi
-
-    # Copy binary
-    local binary_name="$BINARY_NAME"
-    if [[ "$target" == *"windows"* ]]; then
-        binary_name="${BINARY_NAME}.exe"
-    fi
-
-    local binary_path="target/${target}/release/${binary_name}"
-    if [[ ! -f "$binary_path" ]]; then
-        error "Binary not found: $binary_path"
-    fi
-
-    cp "$binary_path" "$build_dir/"
-
-    # Create archive
-    local archive_name="${BINARY_NAME}-${VERSION}-${platform}"
-    info "Creating archive: ${archive_name}.${ext}"
-
-    pushd "$build_dir" > /dev/null
-
-    if [[ "$ext" == "zip" ]]; then
-        zip -q "../${archive_name}.zip" "$binary_name"
-    else
-        tar -czf "../${archive_name}.tar.gz" "$binary_name"
-    fi
-
-    popd > /dev/null
-
-    success "Built ${platform}"
+    info "Pushing tag v${VERSION} to origin (this fires release.yml)..."
+    git push origin "v${VERSION}"
+    success "Tag pushed — watch CI: gh run watch  (or gh run list --workflow=release.yml)"
 }
 
-# Build all targets
-build_all() {
-    if [[ "$SKIP_BUILD" == true ]]; then
-        warn "Skipping build"
+# Block until the GitHub release v${VERSION} exists with every expected
+# platform archive uploaded by the CI build matrix. Required before we publish
+# the npm/PyPI wrappers, whose install scripts download these archives by URL.
+wait_for_github_release() {
+    if [[ "$SKIP_WAIT" == true ]]; then
+        warn "Skipping CI wait (--skip-wait)"
+        return
+    fi
+    if [[ "$DRY_RUN" == true ]]; then
+        warn "Dry run — would wait for v${VERSION} artifacts on GitHub"
+        return
+    fi
+    if [[ "$PUBLISH_NPM" != true && "$PUBLISH_PYPI" != true ]]; then
+        info "No wrapper publish requested — skipping CI wait"
         return
     fi
 
-    info "Building for all platforms..."
+    local expected=()
+    for suffix in "${EXPECTED_ARCHIVES[@]}"; do
+        expected+=("${BINARY_NAME}-${VERSION}-${suffix}")
+    done
 
-    rm -rf "$DIST_DIR"
-    mkdir -p "$ARTIFACTS_DIR"
+    info "Waiting for v${VERSION} on GitHub to have ${#expected[@]} platform artifacts..."
 
-    # Filter targets if custom list provided
-    local targets_to_build=("${TARGETS[@]}")
-    if [[ -n "$CUSTOM_TARGETS" ]]; then
-        targets_to_build=()
-        IFS=',' read -ra custom_list <<< "$CUSTOM_TARGETS"
-        for target_spec in "${TARGETS[@]}"; do
-            local target="${target_spec%%:*}"
-            for custom in "${custom_list[@]}"; do
-                if [[ "$target" == "$custom" ]]; then
-                    targets_to_build+=("$target_spec")
-                    break
-                fi
+    local timeout_secs=1800   # 30 minutes — release.yml typically finishes in ~10–15
+    local interval_secs=20
+    local elapsed=0
+
+    while (( elapsed < timeout_secs )); do
+        local assets
+        if assets=$(gh release view "v${VERSION}" --json assets --jq '.assets[].name' 2>/dev/null); then
+            local missing=()
+            for f in "${expected[@]}"; do
+                grep -qx "$f" <<< "$assets" || missing+=("$f")
             done
-        done
-    fi
-
-    for target_spec in "${targets_to_build[@]}"; do
-        IFS=':' read -r target platform ext <<< "$target_spec"
-        build_target "$target" "$platform" "$ext" || warn "Failed to build ${target}"
-    done
-
-    success "All builds complete"
-}
-
-# Generate checksums
-generate_checksums() {
-    info "Generating checksums..."
-
-    pushd "$ARTIFACTS_DIR" > /dev/null
-
-    # Generate SHA256 checksums
-    local checksum_file="checksums.txt"
-    rm -f "$checksum_file"
-
-    shopt -s nullglob
-    for archive in *.tar.gz *.zip; do
-        if [[ -f "$archive" ]]; then
-            if command -v sha256sum &> /dev/null; then
-                sha256sum "$archive" >> "$checksum_file"
-            elif command -v shasum &> /dev/null; then
-                shasum -a 256 "$archive" >> "$checksum_file"
+            if (( ${#missing[@]} == 0 )); then
+                success "All ${#expected[@]} platform artifacts present on v${VERSION}"
+                return
             fi
-        fi
-    done
-    shopt -u nullglob
-
-    popd > /dev/null
-
-    if [[ -f "$ARTIFACTS_DIR/$checksum_file" ]]; then
-        success "Checksums generated"
-        cat "$ARTIFACTS_DIR/$checksum_file"
-    fi
-}
-
-# Create GitHub release
-create_release() {
-    if [[ "$DRY_RUN" == true ]]; then
-        warn "Dry run - skipping GitHub release"
-        info "Would create release v${VERSION} with files:"
-        ls -la "$ARTIFACTS_DIR"/*.{tar.gz,zip,txt} 2>/dev/null || true
-        return
-    fi
-
-    info "Creating GitHub release v${VERSION}..."
-
-    # Check if release already exists
-    if gh release view "v${VERSION}" &> /dev/null; then
-        warn "Release v${VERSION} already exists"
-        read -p "Delete and recreate? [y/N] " -n 1 -r
-        echo
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
-            gh release delete "v${VERSION}" --yes
+            info "Still waiting on ${#missing[@]} artifact(s): ${missing[*]}"
         else
-            error "Release already exists"
+            info "Release v${VERSION} not visible yet..."
         fi
-    fi
+        sleep "$interval_secs"
+        elapsed=$((elapsed + interval_secs))
+    done
 
-    # Extract changelog or use default
-    local changelog_notes
-    changelog_notes=$(extract_changelog "$VERSION")
-
-    local release_notes="## What's New in v${VERSION}
-"
-    if [[ -n "$changelog_notes" ]]; then
-        release_notes="${release_notes}
-${changelog_notes}"
-    else
-        release_notes="${release_notes}
-### Features
-- LMDB storage backend support (optional feature)
-- Sled storage backend support (optional feature)
-- Comprehensive test suite
-- Improved CI/CD pipeline
-"
-    fi
-
-    release_notes="${release_notes}
-### Installation
-
-\`\`\`bash
-curl -fsSL https://raw.githubusercontent.com/${REPO}/main/install.sh | bash
-\`\`\`
-
-Or with cargo:
-\`\`\`bash
-cargo install agentvfs
-\`\`\`
-
-### Available Features
-
-- \`sled-backend\`: Sled storage with Tantivy search
-- \`lmdb-backend\`: LMDB storage with Tantivy search
-- \`fuse\`: FUSE filesystem mounting
-
-Install with features:
-\`\`\`bash
-cargo install agentvfs --features \"sled-backend,lmdb-backend\"
-\`\`\`
-
-### Checksums
-See checksums.txt for SHA256 checksums of all artifacts.
-"
-
-    # Create release
-    gh release create "v${VERSION}" \
-        --title "v${VERSION}" \
-        --notes "$release_notes" \
-        "$ARTIFACTS_DIR"/*.tar.gz \
-        "$ARTIFACTS_DIR"/*.zip \
-        "$ARTIFACTS_DIR"/checksums.txt \
-        2>/dev/null || {
-            # If some files don't exist, try without patterns
-            gh release create "v${VERSION}" \
-                --title "v${VERSION}" \
-                --notes "$release_notes" \
-                $(ls "$ARTIFACTS_DIR"/*.tar.gz "$ARTIFACTS_DIR"/*.zip "$ARTIFACTS_DIR"/checksums.txt 2>/dev/null)
-        }
-
-    success "GitHub release created: https://github.com/${REPO}/releases/tag/v${VERSION}"
+    error "Timed out after ${timeout_secs}s. Check: gh run list --workflow=release.yml"
 }
 
-# Publish to crates.io
-publish_crate() {
-    if [[ "$PUBLISH" != true ]]; then
-        info "Skipping crates.io publish (use --publish to enable)"
-        return
-    fi
-
-    if [[ "$DRY_RUN" == true ]]; then
-        warn "Dry run - would publish to crates.io"
-        cargo publish --dry-run
-        return
-    fi
-
-    info "Publishing to crates.io..."
-
-    cargo publish
-
-    success "Published to crates.io"
-}
-
-# Publish to npm
 publish_npm() {
     if [[ "$PUBLISH_NPM" != true ]]; then
         info "Skipping npm publish (use --publish-npm to enable)"
         return
     fi
-
     if [[ "$DRY_RUN" == true ]]; then
-        warn "Dry run - would publish npm wrapper"
+        warn "Dry run — would publish npm wrapper @ ${VERSION}"
         return
     fi
-
-    if ! command -v npm &> /dev/null; then
-        error "npm not found. Please install Node.js."
-    fi
-
     info "Publishing npm wrapper..."
-
-    cd packaging/npm
+    pushd packaging/npm > /dev/null
     npm version "${VERSION}" --no-git-tag-version
     npm publish --access public
-    cd ../..
-
+    popd > /dev/null
     success "Published npm wrapper"
 }
 
-# Publish to PyPI
 publish_pypi() {
     if [[ "$PUBLISH_PYPI" != true ]]; then
         info "Skipping PyPI publish (use --publish-pypi to enable)"
         return
     fi
-
     if [[ "$DRY_RUN" == true ]]; then
-        warn "Dry run - would publish PyPI wrapper"
+        warn "Dry run — would publish PyPI wrapper @ ${VERSION}"
         return
     fi
-
-    if ! command -v python3 &> /dev/null && ! command -v python &> /dev/null; then
-        error "python not found. Please install Python."
-    fi
-
     info "Publishing PyPI wrapper..."
-
-    cd packaging/pypi
+    pushd packaging/pypi > /dev/null
     sed -i.bak "s/^version = \"[^\"]*\"/version = \"${VERSION}\"/" pyproject.toml
     rm -f pyproject.toml.bak
-
+    rm -rf dist
     python -m build
     twine upload dist/*
-    cd ../..
-
+    popd > /dev/null
     success "Published PyPI wrapper"
 }
 
-# Extract release notes from CHANGELOG.md
-extract_changelog() {
-    local version="$1"
-    local in_section=false
-    local notes=""
-
-    if [[ ! -f "CHANGELOG.md" ]]; then
-        echo ""
-        return
-    fi
-
-    while IFS= read -r line; do
-        # Check for version header (## [version] or ## version)
-        if [[ "$line" =~ ^##[[:space:]]+\[?${version}\]? ]] || [[ "$line" =~ ^##[[:space:]]+v?${version} ]]; then
-            in_section=true
-            continue
-        fi
-
-        # Check for next version header (end of section)
-        if [[ "$in_section" == true ]] && [[ "$line" =~ ^##[[:space:]] ]]; then
-            break
-        fi
-
-        # Collect notes
-        if [[ "$in_section" == true ]]; then
-            notes="${notes}${line}
-"
-        fi
-    done < "CHANGELOG.md"
-
-    echo "$notes"
-}
-
-# Create git tag
-create_tag() {
-    if [[ "$DRY_RUN" == true ]]; then
-        warn "Dry run - skipping git tag"
-        return
-    fi
-
-    if [[ "$SKIP_TAG" == true ]]; then
-        warn "Skipping git tag (--no-tag specified)"
-        return
-    fi
-
-    if git rev-parse "v${VERSION}" &> /dev/null; then
-        warn "Tag v${VERSION} already exists"
-        return
-    fi
-
-    info "Creating git tag v${VERSION}..."
-
-    git tag -a "v${VERSION}" -m "Release v${VERSION}"
-    git push origin "v${VERSION}"
-
-    success "Tag created and pushed"
-}
-
-# Main
 main() {
     echo ""
     echo "  AgentVFS Release Script"
     echo "  ======================="
-    echo ""
-    echo "  Version: ${VERSION}"
-    echo "  Dry run: ${DRY_RUN}"
-    echo "  Publish crate: ${PUBLISH}"
-    echo "  Publish npm: ${PUBLISH_NPM}"
-    echo "  Publish pypi: ${PUBLISH_PYPI}"
+    echo "  Version:       ${VERSION}"
+    echo "  Dry run:       ${DRY_RUN}"
+    echo "  Publish npm:   ${PUBLISH_NPM}"
+    echo "  Publish pypi:  ${PUBLISH_PYPI}"
     echo ""
 
     check_requirements
     update_version
     run_tests
-    build_all
-    generate_checksums
     create_tag
-    create_release
-    publish_crate
+    wait_for_github_release
     publish_npm
     publish_pypi
 

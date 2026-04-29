@@ -218,11 +218,12 @@ impl ProxyRuntime {
         let stderr = String::from_utf8_lossy(&output.stderr).to_string();
         let exit_code = output.status.code().unwrap_or(-1);
 
+        let command_display = request.command_display();
         Ok(ExecutionResult {
             vault: vault_name,
             mountpoint: mountpoint.display().to_string(),
             cwd: request.cwd,
-            command: request.command_display(),
+            command: command_display,
             exit_code,
             stdout,
             stderr,
