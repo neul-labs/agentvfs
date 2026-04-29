@@ -21,7 +21,7 @@ _INSTALL_HINT = (
     "Install one of:\n"
     "  cargo install agentvfs\n"
     "  curl -fsSL https://raw.githubusercontent.com/neul-labs/agentvfs/main/install.sh | bash\n"
-    "  npm install -g agentvfs\n"
+    "  npm install -g agentvfs-cli\n"
 )
 
 

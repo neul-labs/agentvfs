@@ -1,6 +1,6 @@
 {
-  "name": "agentvfs",
-  "version": "0.1.3",
+  "name": "agentvfs-cli",
+  "version": "0.1.6",
   "description": "Workspace runtime and execution boundary for AI agents",
   "main": "index.js",
   "bin": {

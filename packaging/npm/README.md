@@ -1,4 +1,4 @@
-# agentvfs
+# agentvfs-cli
 
 Cross-platform npm wrapper for the `avfs` CLI.
 
@@ -7,7 +7,7 @@ This package downloads the correct platform-specific binary from GitHub releases
 ## Install
 
 ```bash
-npm install -g agentvfs
+npm install -g agentvfs-cli
 ```
 
 ## Usage

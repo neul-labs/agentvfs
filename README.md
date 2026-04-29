@@ -43,7 +43,7 @@ cargo install agentvfs
 
 **With npm:**
 ```bash
-npm install -g agentvfs
+npm install -g agentvfs-cli
 ```
 
 **With pip:**

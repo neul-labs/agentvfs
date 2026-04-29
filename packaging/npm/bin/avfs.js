@@ -16,7 +16,7 @@ const binaryPath = path.join(__dirname, '..', 'vendor', binaryName);
 if (!fs.existsSync(binaryPath)) {
   console.error(`avfs binary not found at ${binaryPath}`);
   console.error('The postinstall step may have failed.');
-  console.error('Try: npm rebuild agentvfs   (or reinstall the package)');
+  console.error('Try: npm rebuild agentvfs-cli   (or reinstall the package)');
   process.exit(1);
 }
 
