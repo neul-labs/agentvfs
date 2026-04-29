@@ -1,6 +1,24 @@
+# Rust
 /target
 memista.*
 *.usearch
+
+# Editor / env
 .vscode
 *.env
-/dist
+
+# Release artifacts (release.sh + uv build + npm pack)
+# `dist/` (no leading slash) matches both ./dist and ./packaging/*/dist
+dist/
+*.bak
+*.tgz
+
+# npm wrapper
+packaging/npm/node_modules/
+# Native binary downloaded by install.js postinstall
+packaging/npm/vendor/
+
+# pypi wrapper
+__pycache__/
+*.pyc
+*.egg-info/

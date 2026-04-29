@@ -115,9 +115,11 @@ check_requirements() {
         command -v npm &>/dev/null || error "npm not found (needed for --publish-npm)"
     fi
     if [[ "$PUBLISH_PYPI" == true ]]; then
-        command -v python3 &>/dev/null || command -v python &>/dev/null \
-            || error "python not found (needed for --publish-pypi)"
-        command -v twine &>/dev/null || error "twine not found (pip install twine)"
+        # uv handles its own Python interpreter and bundles build + publish,
+        # so we don't need system python/python3 or pip-installed build/twine.
+        # Auth via UV_PUBLISH_TOKEN env var or ~/.pypirc (twine-compatible).
+        command -v uv &>/dev/null \
+            || error "uv not found (needed for --publish-pypi). Install: https://docs.astral.sh/uv/"
     fi
     success "All requirements met"
 }
@@ -246,8 +248,8 @@ publish_pypi() {
     sed -i.bak "s/^version = \"[^\"]*\"/version = \"${VERSION}\"/" pyproject.toml
     rm -f pyproject.toml.bak
     rm -rf dist
-    python -m build
-    twine upload dist/*
+    uv build
+    uv publish dist/*
     popd > /dev/null
     success "Published PyPI wrapper"
 }

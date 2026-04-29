@@ -3,8 +3,8 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "agentvfs"
-version = "0.1.6"
+name = "agentvfs-cli"
+version = "0.1.8"
 description = "Workspace runtime and execution boundary for AI agents"
 readme = "README.md"
 license = { text = "MIT" }
@@ -41,3 +41,9 @@ Documentation = "https://docs.neullabs.com/agentvfs"
 # call would resolve to that shim and recurse into itself.
 [project.scripts]
 agentvfs = "agentvfs.cli:main"
+
+# Distribution name (`agentvfs-cli`) differs from the importable module name
+# (`agentvfs`), so hatchling's auto-detection (which looks for a directory
+# matching the dist name) won't find the package. Pin it explicitly.
+[tool.hatch.build.targets.wheel]
+packages = ["agentvfs"]

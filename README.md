@@ -48,8 +48,12 @@ npm install -g agentvfs-cli
 
 **With pip:**
 ```bash
-pip install agentvfs
+pip install agentvfs-cli
 ```
+The pip wrapper auto-fetches the matching native binary on first invocation
+and caches it under `~/.cache/agentvfs/<version>/`. See
+[packaging/pypi/README.md](packaging/pypi/README.md#native-binary-resolution)
+for resolution order, the `AGENTVFS_BIN` override, and offline-install notes.
 
 ### Basic Usage
 
