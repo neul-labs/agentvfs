@@ -22,3 +22,7 @@ packaging/npm/vendor/
 __pycache__/
 *.pyc
 *.egg-info/
+
+# mkdocs build output
+site/
+documentation/.venv/

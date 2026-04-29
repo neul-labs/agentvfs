@@ -1,9 +1,11 @@
 site_name: AgentVFS Documentation
-site_description: Virtual Filesystem CLI backed by embedded databases
+site_description: Workspace runtime and execution boundary for AI agents
+site_url: https://docs.neullabs.com/agentvfs/
 repo_url: https://github.com/neul-labs/agentvfs
 repo_name: neul-labs/agentvfs
+edit_uri: edit/main/documentation/docs/
 
-docs_dir: documentation
+# docs_dir defaults to ./docs relative to this file — no override needed.
 
 theme:
   name: material
@@ -50,6 +52,7 @@ nav:
     - Proxy Boundary: advanced/proxy-boundary.md
     - FUSE Mount: advanced/fuse-mount.md
     - Agent Integration: advanced/agent-integration.md
+    - Python SDK: advanced/python-sdk.md
   - Reference:
     - Command Reference: reference/commands.md
     - Database Schema: reference/schema.md

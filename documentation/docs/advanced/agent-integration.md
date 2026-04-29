@@ -39,9 +39,34 @@ The boundary is built from four lower-level primitives already present in the pr
 - **Checkpoints** for rollback
 - **Mounts** for tool compatibility
 
-## Current Low-Level Integration
+## Python SDK (preferred for Python agents)
 
-Today, low-level integrations can still compose the runtime directly:
+If your agent runtime is in Python, use the official SDK from PyPI:
+
+```bash
+pip install agentvfs-cli
+```
+
+```python
+from agentvfs import AVFS
+
+root = AVFS()
+root.create_vault("agent-workspace")
+root.fork_vault("agent-workspace", "agent-workspace-task-1")
+
+task = AVFS("agent-workspace-task-1")
+task.checkpoint_save("before-change")
+
+result = task.proxy_exec("cargo", "test", cwd="/")
+print(result["execution_result"]["exit_code"])
+print(result["execution_result"]["changed_files"])
+```
+
+The SDK lazily downloads the matching native `avfs` binary on first invocation and caches it under `~/.cache/agentvfs/<version>/`. See the [Python SDK reference](python-sdk.md) for the full API and the [installation guide](../getting-started/installation.md#pip) for the resolution order.
+
+## Raw subprocess integration
+
+If you can't use the SDK (non-Python runtime, or you need full control over the avfs invocation), you can compose the CLI directly:
 
 ```python
 import json
@@ -152,6 +177,7 @@ If those requirements appear later, they should be handled below the proxy bound
 
 ## Related Guides
 
+- [Python SDK](python-sdk.md)
 - [Proxy Boundary](proxy-boundary.md)
 - [FUSE Mount](fuse-mount.md)
 - [Vault Management](../user-guide/vaults.md)

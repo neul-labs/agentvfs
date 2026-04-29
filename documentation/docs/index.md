@@ -33,6 +33,20 @@ The repository already contains the runtime pieces needed for that model:
 
 Those pieces are currently exposed as lower-level commands. The roadmap now shifts toward making the proxy boundary the primary agent-facing execution surface.
 
+## Install
+
+```bash
+# Shell installer (recommended)
+curl -sSfL https://raw.githubusercontent.com/neul-labs/agentvfs/main/install.sh | bash
+
+# Or pick a package manager:
+cargo install agentvfs
+npm install -g agentvfs-cli
+pip install agentvfs-cli
+```
+
+The pip wrapper auto-fetches the native binary lazily on first use. See [Installation](getting-started/installation.md) for all four channels and how they relate.
+
 ## Quick Example
 
 ```bash
@@ -67,6 +81,7 @@ avfs grep "hello" /
 - [Core Concepts](getting-started/concepts.md)
 - [Vault Management](user-guide/vaults.md)
 - [Agent Integration](advanced/agent-integration.md)
+- [Python SDK](advanced/python-sdk.md)
 - [Proxy Boundary](advanced/proxy-boundary.md)
 - [FUSE Mount](advanced/fuse-mount.md)
 - [Architecture](reference/architecture.md)
