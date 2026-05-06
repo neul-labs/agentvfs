@@ -47,7 +47,7 @@ pub fn run(args: CpArgs, output: &Output, vault: Option<String>) -> Result<()> {
     let (logical_size, file_count) = if entry.is_dir() {
         calculate_tree_size(&fs, &args.source)?
     } else {
-        (entry.size as u64, 1usize)
+        (entry.size, 1usize)
     };
 
     // Copies reuse existing content blobs, so they only consume file-count quota.
@@ -88,7 +88,7 @@ fn calculate_tree_size(fs: &FileSystem, path: &str) -> Result<(u64, usize)> {
     let entry = fs.get_entry(path)?;
 
     if !entry.is_dir() {
-        return Ok((entry.size as u64, 1));
+        return Ok((entry.size, 1));
     }
 
     let mut total_size = 0u64;
@@ -107,7 +107,7 @@ fn calculate_tree_size(fs: &FileSystem, path: &str) -> Result<(u64, usize)> {
             total_size += sub_size;
             file_count += sub_count;
         } else {
-            total_size += child.size as u64;
+            total_size += child.size;
             file_count += 1;
         }
     }

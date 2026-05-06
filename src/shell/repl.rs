@@ -165,7 +165,7 @@ impl Shell {
 
         // Prepend "avfs" to make it a valid CLI invocation
         let full_args: Vec<String> = std::iter::once("avfs".to_string())
-            .chain(args.into_iter())
+            .chain(args)
             .collect();
 
         // Use clap to parse and execute

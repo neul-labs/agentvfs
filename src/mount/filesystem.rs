@@ -19,6 +19,7 @@ const ROOT_INODE: u64 = 1;
 
 /// State of an open file handle.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 enum OpenFileState {
     Open,
     Dirty,

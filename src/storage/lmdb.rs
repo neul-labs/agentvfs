@@ -1046,8 +1046,7 @@ impl LmdbBackend {
             }
         }
 
-        versions
-            .sort_by(|a: &FileVersion, b: &FileVersion| b.version_number.cmp(&a.version_number));
+        versions.sort_by_key(|b| std::cmp::Reverse(b.version_number));
         Ok(versions)
     }
 
@@ -1829,7 +1828,7 @@ impl LmdbBackend {
             snapshots.push(stored.into());
         }
 
-        snapshots.sort_by(|a: &SnapshotInfo, b: &SnapshotInfo| b.created_at.cmp(&a.created_at));
+        snapshots.sort_by_key(|b| std::cmp::Reverse(b.created_at));
         Ok(snapshots)
     }
 
@@ -1903,8 +1902,8 @@ impl LmdbBackend {
 
             // Ensure parent directories exist
             let mut current_parent_id = 1i64; // root
-            for i in 0..parts.len() - 1 {
-                let dir_name = parts[i];
+            for part in parts.iter().take(parts.len() - 1) {
+                let dir_name = part;
                 if let Some(existing_id) = self.get_file_id(current_parent_id, dir_name)? {
                     current_parent_id = existing_id;
                 } else {
@@ -2169,7 +2168,7 @@ impl LmdbBackend {
         }
 
         // Sort by ID descending (newest first)
-        all_entries.sort_by(|a, b| b.id.cmp(&a.id));
+        all_entries.sort_by_key(|b| std::cmp::Reverse(b.id));
 
         for stored in all_entries {
             // Apply filters

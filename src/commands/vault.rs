@@ -96,7 +96,7 @@ pub fn run(args: VaultArgs, output: &Output) -> Result<()> {
 
             // Check if the feature is enabled for the requested backend
             #[cfg(not(feature = "sled-backend"))]
-            if matches!(backend_type, BackendType::Sqlite) == false {
+            if !matches!(backend_type, BackendType::Sqlite) {
                 return Err(crate::error::VfsError::Internal(
                     "sled backend requires the 'sled-backend' feature to be enabled".to_string(),
                 ));

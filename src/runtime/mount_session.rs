@@ -52,12 +52,10 @@ impl MountSession {
         let vfs_fs = VfsFilesystem::new(fs, readonly);
         let options = mount_options(workspace_name, readonly, allow_other);
 
-        let mut state = MountState::Mounting;
-
         let session = fuser::spawn_mount2(vfs_fs, &mountpoint, &options)
             .map_err(|e| VfsError::Internal(format!("mount failed: {}", e)))?;
 
-        state = MountState::Mounted;
+        let state = MountState::Mounted;
 
         Ok(Self {
             mountpoint,

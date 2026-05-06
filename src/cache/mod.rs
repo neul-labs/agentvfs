@@ -129,10 +129,7 @@ impl FileEntryCache {
                 Ok(archived) => {
                     self.stats.hit();
                     // Deserialize to owned type
-                    match rkyv::deserialize::<CachedFileEntry, RkyvError>(archived) {
-                        Ok(entry) => Some(entry),
-                        Err(_) => None,
-                    }
+                    rkyv::deserialize::<CachedFileEntry, RkyvError>(archived).ok()
                 }
                 Err(_) => {
                     self.stats.miss();
@@ -246,10 +243,7 @@ impl DirListingCache {
             match access::<ArchivedCachedDirListing, RkyvError>(bytes) {
                 Ok(archived) => {
                     self.stats.hit();
-                    match rkyv::deserialize::<CachedDirListing, RkyvError>(archived) {
-                        Ok(listing) => Some(listing),
-                        Err(_) => None,
-                    }
+                    rkyv::deserialize::<CachedDirListing, RkyvError>(archived).ok()
                 }
                 Err(_) => {
                     self.stats.miss();

@@ -2248,7 +2248,8 @@ impl SqliteBackend {
              FROM snapshot_files WHERE snapshot_id = ?",
         )?;
 
-        let files: Vec<(String, i64, Option<Vec<u8>>, i64, i64, i64)> = stmt
+        type SnapshotFileRow = (String, i64, Option<Vec<u8>>, i64, i64, i64);
+        let files: Vec<SnapshotFileRow> = stmt
             .query_map([snapshot.id], |row| {
                 Ok((
                     row.get(0)?,

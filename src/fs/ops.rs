@@ -483,7 +483,7 @@ impl FileSystem {
         depth: usize,
         max_depth: Option<usize>,
     ) -> Result<TreeNode> {
-        let children = if entry.is_dir() && max_depth.map_or(true, |m| depth < m) {
+        let children = if entry.is_dir() && max_depth.is_none_or(|m| depth < m) {
             let entries = self.backend.list_children(vpath)?;
             let mut children = Vec::new();
             for child in entries {

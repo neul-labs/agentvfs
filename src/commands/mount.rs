@@ -3,7 +3,6 @@
 use std::path::Path;
 
 use clap::Args;
-use fuser::MountOption;
 use serde::Serialize;
 
 use crate::commands::Output;
@@ -95,7 +94,7 @@ pub fn run(args: MountArgs, output: &Output) -> Result<()> {
             args.allow_other,
             false,
         )?;
-        session.mountpoint().to_path_buf();
+        let _ = session.mountpoint().to_path_buf();
 
         std::thread::park();
     }

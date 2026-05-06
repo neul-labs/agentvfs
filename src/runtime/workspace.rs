@@ -256,7 +256,7 @@ fn try_clone_file_copy_on_write(source: &Path, target: &Path) -> Result<bool> {
             return Ok(false);
         }
 
-        return Err(err.into());
+        Err(err.into())
     }
 
     #[cfg(target_os = "linux")]
@@ -296,6 +296,7 @@ fn try_clone_file_copy_on_write(source: &Path, target: &Path) -> Result<bool> {
     }
 }
 
+#[allow(unreachable_patterns)]
 fn clone_fallback_allowed(errno: Option<i32>) -> bool {
     matches!(
         errno,

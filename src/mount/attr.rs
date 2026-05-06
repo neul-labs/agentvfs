@@ -38,7 +38,7 @@ pub fn entry_to_attr(entry: &FileEntry) -> FileAttr {
     FileAttr {
         ino: entry.id as u64,
         size: entry.size,
-        blocks: (entry.size + 511) / 512,
+        blocks: entry.size.div_ceil(512),
         atime: mtime, // Use mtime for atime (we don't track access time)
         mtime,
         ctime,

@@ -200,27 +200,27 @@ impl ProxyExecutionState {
     /// Returns true if `self` can legally transition to `next`.
     pub fn can_transition_to(&self, next: ProxyExecutionState) -> bool {
         use ProxyExecutionState::*;
-        match (*self, next) {
+        matches!(
+            (*self, next),
             (Initial, Validating)
-            | (Validating, Resolving)
-            | (Resolving, PolicyEvaluating)
-            | (PolicyEvaluating, BaselineCapturing)
-            | (PolicyEvaluating, CleaningUp)
-            | (PolicyEvaluating, Failed)
-            | (BaselineCapturing, Checkpointing)
-            | (BaselineCapturing, Mounting)
-            | (Checkpointing, Mounting)
-            | (Mounting, Executing)
-            | (Mounting, CleaningUp)
-            | (Executing, Summarizing)
-            | (Executing, CleaningUp)
-            | (Summarizing, Completed)
-            | (Summarizing, CleaningUp)
-            | (CleaningUp, Failed)
-            | (CleaningUp, Completed)
-            | (_, Failed) => true,
-            _ => false,
-        }
+                | (Validating, Resolving)
+                | (Resolving, PolicyEvaluating)
+                | (PolicyEvaluating, BaselineCapturing)
+                | (PolicyEvaluating, CleaningUp)
+                | (PolicyEvaluating, Failed)
+                | (BaselineCapturing, Checkpointing)
+                | (BaselineCapturing, Mounting)
+                | (Checkpointing, Mounting)
+                | (Mounting, Executing)
+                | (Mounting, CleaningUp)
+                | (Executing, Summarizing)
+                | (Executing, CleaningUp)
+                | (Summarizing, Completed)
+                | (Summarizing, CleaningUp)
+                | (CleaningUp, Failed)
+                | (CleaningUp, Completed)
+                | (_, Failed)
+        )
     }
 
     /// Returns true if the state represents a terminal outcome.
