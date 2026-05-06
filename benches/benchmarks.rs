@@ -743,10 +743,10 @@ fn bench_fuse_parallel_write(c: &mut Criterion) {
                             // Parallel writes across threads
                             (0..threads).into_par_iter().for_each(|t| {
                                 let mut gen = DataGenerator::new(t as u64 + iter * 1000);
-                                for i in 0..files_per_thread {
+                                for _i in 0..files_per_thread {
                                     let id = counter.fetch_add(1, Ordering::Relaxed);
                                     let path = bench_dir.join(format!("file_{}_{}.txt", t, id));
-                                    std::fs::write(&path, &gen.content(file_size)).unwrap();
+                                    std::fs::write(&path, gen.content(file_size)).unwrap();
                                 }
                             });
 
@@ -790,7 +790,7 @@ fn bench_fuse_parallel_read(c: &mut Criterion) {
                     let paths: Vec<_> = (0..total_files)
                         .map(|i| {
                             let path = bench_dir.join(format!("file_{}.txt", i));
-                            std::fs::write(&path, &gen.content(file_size)).unwrap();
+                            std::fs::write(&path, gen.content(file_size)).unwrap();
                             path
                         })
                         .collect();
@@ -958,7 +958,7 @@ fn bench_fuse_parallel_mixed(c: &mut Criterion) {
                                             let id = counter.fetch_add(1, Ordering::Relaxed);
                                             let path =
                                                 bench_dir.join(format!("new_{}_{}.txt", t, id));
-                                            std::fs::write(&path, &gen.content(512)).unwrap();
+                                            std::fs::write(&path, gen.content(512)).unwrap();
                                         }
                                         1 => {
                                             // Read
@@ -970,18 +970,11 @@ fn bench_fuse_parallel_mixed(c: &mut Criterion) {
                                             // List
                                             let _ = std::fs::read_dir(&bench_dir).unwrap().count();
                                         }
-                                        3 => {
+                                        3 if rg_available => {
                                             // Search (if ripgrep available)
-                                            if rg_available {
-                                                let _ = Command::new("rg")
-                                                    .args([
-                                                        "--no-ignore",
-                                                        "-l",
-                                                        "findme",
-                                                        &bench_path,
-                                                    ])
-                                                    .output();
-                                            }
+                                            let _ = Command::new("rg")
+                                                .args(["--no-ignore", "-l", "findme", &bench_path])
+                                                .output();
                                         }
                                         _ => {}
                                     }
@@ -1019,7 +1012,7 @@ fn bench_fuse_readdir(c: &mut Criterion) {
 
                     let mut gen = DataGenerator::new(42);
                     for i in 0..count {
-                        std::fs::write(test_dir.join(format!("f_{}.txt", i)), &gen.content(100))
+                        std::fs::write(test_dir.join(format!("f_{}.txt", i)), gen.content(100))
                             .unwrap();
                     }
 
