@@ -286,7 +286,7 @@ fn try_clone_file_copy_on_write(source: &Path, target: &Path) -> Result<bool> {
             return Ok(false);
         }
 
-        return Err(err.into());
+        Err(err.into())
     }
 
     #[cfg(not(any(target_os = "macos", target_os = "linux")))]
