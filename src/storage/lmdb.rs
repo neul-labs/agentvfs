@@ -1034,7 +1034,7 @@ impl LmdbBackend {
     /// Get all versions for a file.
     pub fn get_file_versions(&self, file_id: i64) -> Result<Vec<FileVersion>> {
         let rtxn = self.env.read_txn()?;
-        let mut versions = Vec::new();
+        let mut versions: Vec<FileVersion> = Vec::new();
 
         let prefix = format!("{}:", file_id);
         for result in self.db_versions.iter(&rtxn)? {
@@ -1816,7 +1816,7 @@ impl LmdbBackend {
     /// List all snapshots.
     pub fn list_snapshots(&self) -> Result<Vec<SnapshotInfo>> {
         let rtxn = self.env.read_txn()?;
-        let mut snapshots = Vec::new();
+        let mut snapshots: Vec<SnapshotInfo> = Vec::new();
 
         for result in self.db_snapshots.iter(&rtxn)? {
             let (key, value) = result?;

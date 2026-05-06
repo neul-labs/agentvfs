@@ -889,7 +889,7 @@ impl SledBackend {
     /// Get all versions for a file.
     pub fn get_file_versions(&self, file_id: i64) -> Result<Vec<FileVersion>> {
         let versions_tree = self.db.open_tree(TREE_VERSIONS)?;
-        let mut versions = Vec::new();
+        let mut versions: Vec<FileVersion> = Vec::new();
 
         let prefix = format!("{}:", file_id);
         for result in versions_tree.scan_prefix(prefix.as_bytes()) {
@@ -1598,7 +1598,7 @@ impl SledBackend {
     /// List all snapshots.
     pub fn list_snapshots(&self) -> Result<Vec<SnapshotInfo>> {
         let snapshots_tree = self.db.open_tree(TREE_SNAPSHOTS)?;
-        let mut snapshots = Vec::new();
+        let mut snapshots: Vec<SnapshotInfo> = Vec::new();
 
         for result in snapshots_tree.iter() {
             let (key, value) = result?;
