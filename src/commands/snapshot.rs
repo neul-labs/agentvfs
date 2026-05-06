@@ -1,7 +1,7 @@
 //! Snapshot management command.
 
-use clap::{Args, Subcommand};
 use chrono::{TimeZone, Utc};
+use clap::{Args, Subcommand};
 use serde::Serialize;
 
 use crate::commands::Output;
@@ -79,7 +79,11 @@ impl std::fmt::Display for SnapshotListOutput {
             return Ok(());
         }
 
-        writeln!(f, "{:<20} {:<20} {:>8} {:>12}", "NAME", "CREATED", "FILES", "SIZE")?;
+        writeln!(
+            f,
+            "{:<20} {:<20} {:>8} {:>12}",
+            "NAME", "CREATED", "FILES", "SIZE"
+        )?;
         writeln!(f, "{}", "-".repeat(64))?;
 
         for snap in &self.snapshots {
@@ -151,7 +155,8 @@ pub fn run(args: SnapshotArgs, output: &Output, vault: Option<String>) -> Result
             });
             let _ = backend.log_operation("snapshot_save", None, Some(&details.to_string()));
 
-            let ts = Utc.timestamp_opt(info.created_at, 0)
+            let ts = Utc
+                .timestamp_opt(info.created_at, 0)
                 .single()
                 .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
                 .unwrap_or_else(|| info.created_at.to_string());
@@ -177,7 +182,8 @@ pub fn run(args: SnapshotArgs, output: &Output, vault: Option<String>) -> Result
             let output_snapshots: Vec<SnapshotOutput> = snapshots
                 .into_iter()
                 .map(|s| {
-                    let ts = Utc.timestamp_opt(s.created_at, 0)
+                    let ts = Utc
+                        .timestamp_opt(s.created_at, 0)
                         .single()
                         .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
                         .unwrap_or_else(|| s.created_at.to_string());
@@ -232,7 +238,8 @@ pub fn run(args: SnapshotArgs, output: &Output, vault: Option<String>) -> Result
         SnapshotCommand::Info { name } => {
             let info = backend.get_snapshot(&name)?;
 
-            let ts = Utc.timestamp_opt(info.created_at, 0)
+            let ts = Utc
+                .timestamp_opt(info.created_at, 0)
                 .single()
                 .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
                 .unwrap_or_else(|| info.created_at.to_string());

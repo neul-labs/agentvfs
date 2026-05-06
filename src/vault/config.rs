@@ -31,9 +31,11 @@ impl Config {
 
     /// Get the default base directory (~/.avfs).
     fn default_base_dir() -> Result<PathBuf> {
-        let home = dirs::home_dir().ok_or_else(|| {
-            VfsError::Internal("could not determine home directory".to_string())
-        })?;
+        let home = std::env::var("HOME")
+            .map(PathBuf::from)
+            .ok()
+            .or_else(dirs::home_dir)
+            .ok_or_else(|| VfsError::Internal("could not determine home directory".to_string()))?;
         Ok(home.join(".avfs"))
     }
 
@@ -179,9 +181,9 @@ impl Config {
 
     /// Delete a vault's database file.
     pub fn delete_vault_file(&self, name: &str) -> Result<()> {
-        let backend = self.vault_backend(name).ok_or_else(|| {
-            VfsError::VaultNotFound(name.to_string())
-        })?;
+        let backend = self
+            .vault_backend(name)
+            .ok_or_else(|| VfsError::VaultNotFound(name.to_string()))?;
 
         let path = self.vault_path_with_backend(name, backend);
 

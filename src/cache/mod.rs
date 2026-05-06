@@ -7,11 +7,7 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use parking_lot::RwLock;
-use rkyv::{
-    Archive, Deserialize, Serialize,
-    rancor::Error as RkyvError,
-    to_bytes, access,
-};
+use rkyv::{access, rancor::Error as RkyvError, to_bytes, Archive, Deserialize, Serialize};
 
 /// Maximum number of entries in the cache.
 const DEFAULT_MAX_ENTRIES: usize = 10_000;
@@ -158,17 +154,17 @@ impl FileEntryCache {
 
                 // Simple eviction: if at capacity, clear half the cache
                 if entries.len() >= self.max_entries {
-                    let to_remove: Vec<_> = entries.keys()
-                        .take(self.max_entries / 2)
-                        .cloned()
-                        .collect();
+                    let to_remove: Vec<_> =
+                        entries.keys().take(self.max_entries / 2).cloned().collect();
                     for key in to_remove {
                         entries.remove(&key);
                     }
                 }
 
                 entries.insert(path, bytes.to_vec());
-                self.stats.entries.store(entries.len() as u64, Ordering::Relaxed);
+                self.stats
+                    .entries
+                    .store(entries.len() as u64, Ordering::Relaxed);
             }
             Err(_) => {
                 // Failed to serialize, skip caching
@@ -180,14 +176,18 @@ impl FileEntryCache {
     pub fn invalidate(&self, path: &str) {
         let mut entries = self.entries.write();
         entries.remove(path);
-        self.stats.entries.store(entries.len() as u64, Ordering::Relaxed);
+        self.stats
+            .entries
+            .store(entries.len() as u64, Ordering::Relaxed);
     }
 
     /// Invalidate all entries under a path prefix.
     pub fn invalidate_prefix(&self, prefix: &str) {
         let mut entries = self.entries.write();
         entries.retain(|k, _| !k.starts_with(prefix));
-        self.stats.entries.store(entries.len() as u64, Ordering::Relaxed);
+        self.stats
+            .entries
+            .store(entries.len() as u64, Ordering::Relaxed);
     }
 
     /// Clear all cached entries.
@@ -269,7 +269,8 @@ impl DirListingCache {
                 let mut listings = self.listings.write();
 
                 if listings.len() >= self.max_entries {
-                    let to_remove: Vec<_> = listings.keys()
+                    let to_remove: Vec<_> = listings
+                        .keys()
                         .take(self.max_entries / 2)
                         .cloned()
                         .collect();
@@ -279,7 +280,9 @@ impl DirListingCache {
                 }
 
                 listings.insert(path, bytes.to_vec());
-                self.stats.entries.store(listings.len() as u64, Ordering::Relaxed);
+                self.stats
+                    .entries
+                    .store(listings.len() as u64, Ordering::Relaxed);
             }
             Err(_) => {
                 // Failed to serialize, skip caching
@@ -296,7 +299,9 @@ impl DirListingCache {
             let parent_path = if parent.is_empty() { "/" } else { parent };
             listings.remove(parent_path);
         }
-        self.stats.entries.store(listings.len() as u64, Ordering::Relaxed);
+        self.stats
+            .entries
+            .store(listings.len() as u64, Ordering::Relaxed);
     }
 
     /// Clear all cached listings.
@@ -384,14 +389,12 @@ mod tests {
 
         let listing = CachedDirListing {
             path: "/docs".to_string(),
-            entries: vec![
-                CachedDirEntry {
-                    name: "readme.txt".to_string(),
-                    is_dir: false,
-                    size: 512,
-                    modified_at: 1234567890,
-                },
-            ],
+            entries: vec![CachedDirEntry {
+                name: "readme.txt".to_string(),
+                is_dir: false,
+                size: 512,
+                modified_at: 1234567890,
+            }],
             cached_at: 1234567890,
         };
 

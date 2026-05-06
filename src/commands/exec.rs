@@ -56,7 +56,9 @@ pub fn run(args: ExecArgs, output: &Output, vault: Option<String>) -> Result<()>
 
     // Create temp file and write content
     let mut temp_file = NamedTempFile::new().map_err(crate::error::VfsError::Io)?;
-    temp_file.write_all(&content).map_err(crate::error::VfsError::Io)?;
+    temp_file
+        .write_all(&content)
+        .map_err(crate::error::VfsError::Io)?;
     temp_file.flush().map_err(crate::error::VfsError::Io)?;
 
     let temp_path = temp_file.path();
@@ -103,11 +105,15 @@ pub fn run(args: ExecArgs, output: &Output, vault: Option<String>) -> Result<()>
     // If using stdin, write content to it
     if args.stdin {
         if let Some(mut stdin) = child.stdin.take() {
-            stdin.write_all(&content).map_err(crate::error::VfsError::Io)?;
+            stdin
+                .write_all(&content)
+                .map_err(crate::error::VfsError::Io)?;
         }
     }
 
-    let cmd_output = child.wait_with_output().map_err(crate::error::VfsError::Io)?;
+    let cmd_output = child
+        .wait_with_output()
+        .map_err(crate::error::VfsError::Io)?;
 
     let exit_code = cmd_output.status.code().unwrap_or(-1);
     let stdout = String::from_utf8_lossy(&cmd_output.stdout).to_string();

@@ -57,11 +57,9 @@ impl ExecutionRequest {
         }
 
         match &self.command {
-            CommandSpec::Argv(argv) if argv.is_empty() => {
-                Err(VfsError::InvalidInput(
-                    "proxy requires a command; use --shell or -- <command> ...".to_string(),
-                ))
-            }
+            CommandSpec::Argv(argv) if argv.is_empty() => Err(VfsError::InvalidInput(
+                "proxy requires a command; use --shell or -- <command> ...".to_string(),
+            )),
             CommandSpec::Shell(cmd) if cmd.trim().is_empty() => Err(VfsError::InvalidInput(
                 "proxy shell command cannot be empty".to_string(),
             )),
@@ -227,7 +225,10 @@ impl ProxyExecutionState {
 
     /// Returns true if the state represents a terminal outcome.
     pub fn is_terminal(&self) -> bool {
-        matches!(self, ProxyExecutionState::Completed | ProxyExecutionState::Failed)
+        matches!(
+            self,
+            ProxyExecutionState::Completed | ProxyExecutionState::Failed
+        )
     }
 
     /// Human-readable label for the state.
@@ -326,7 +327,10 @@ mod tests {
         assert_eq!(value["success"], false);
         assert_eq!(value["request"]["command_mode"], "argv");
         assert_eq!(value["request"]["checkpoint_mode"], "auto");
-        assert_eq!(value["result"]["decision"]["action"], "allow_with_checkpoint");
+        assert_eq!(
+            value["result"]["decision"]["action"],
+            "allow_with_checkpoint"
+        );
         assert_eq!(value["result"]["decision"]["categories"][0], "mutating");
     }
 }

@@ -49,10 +49,13 @@ pub fn run(args: RmArgs, output: &Output, vault: Option<String>) -> Result<()> {
                 "delete_file"
             };
             let details = if let Some(entry) = &entry_info {
-                Some(serde_json::json!({
-                    "size": entry.size,
-                    "recursive": args.recursive
-                }).to_string())
+                Some(
+                    serde_json::json!({
+                        "size": entry.size,
+                        "recursive": args.recursive
+                    })
+                    .to_string(),
+                )
             } else {
                 None
             };

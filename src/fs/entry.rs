@@ -62,7 +62,13 @@ pub struct FileEntry {
 
 impl FileEntry {
     /// Create a new file entry.
-    pub fn new_file(id: i64, parent_id: i64, name: String, content_hash: [u8; 32], size: u64) -> Self {
+    pub fn new_file(
+        id: i64,
+        parent_id: i64,
+        name: String,
+        content_hash: [u8; 32],
+        size: u64,
+    ) -> Self {
         let now = Utc::now();
         Self {
             id,

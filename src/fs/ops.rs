@@ -6,7 +6,7 @@ use std::sync::Arc;
 use crate::error::{Result, VfsError};
 use crate::fs::entry::{DirEntry, FileEntry, FileType};
 use crate::fs::path;
-use crate::storage::{VaultBackend};
+use crate::storage::VaultBackend;
 
 /// Virtual filesystem operations.
 pub struct FileSystem {
@@ -331,7 +331,12 @@ impl FileSystem {
             } else {
                 match self.backend.as_ref() {
                     VaultBackend::Sqlite(backend) => {
-                        backend.copy_file_atomic(&child, new_dir.id, &child.name, &child_dst_path)?;
+                        backend.copy_file_atomic(
+                            &child,
+                            new_dir.id,
+                            &child.name,
+                            &child_dst_path,
+                        )?;
                     }
                     #[cfg(any(feature = "sled-backend", feature = "lmdb-backend"))]
                     _ => {
@@ -405,8 +410,13 @@ impl FileSystem {
             }
             #[cfg(any(feature = "sled-backend", feature = "lmdb-backend"))]
             _ => {
-                self.backend
-                    .move_entry(src_entry.id, parent.id, &name, &src_normalized, &new_path)?;
+                self.backend.move_entry(
+                    src_entry.id,
+                    parent.id,
+                    &name,
+                    &src_normalized,
+                    &new_path,
+                )?;
 
                 if src_entry.is_dir() {
                     self.backend.rebuild_child_paths(src_entry.id, &new_path)?;

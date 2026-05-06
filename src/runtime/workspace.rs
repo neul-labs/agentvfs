@@ -103,9 +103,7 @@ impl WorkspaceService {
             return Ok(arc);
         }
 
-        let backend = Arc::new(VaultBackend::open(
-            &path,
-            descriptor.backend)?);
+        let backend = Arc::new(VaultBackend::open(&path, descriptor.backend)?);
         cache.insert(path, Arc::downgrade(&backend));
         Ok(backend)
     }
@@ -124,7 +122,9 @@ impl WorkspaceService {
         source_backend.sync()?;
         drop(source_backend);
 
-        let target_path = self.config.vault_path_with_backend(name, descriptor.backend);
+        let target_path = self
+            .config
+            .vault_path_with_backend(name, descriptor.backend);
         let mut copy_on_write = clone_path(&descriptor.path, &target_path)?;
 
         if matches!(descriptor.backend, BackendType::Sqlite) {
@@ -267,8 +267,13 @@ fn try_clone_file_copy_on_write(source: &Path, target: &Path) -> Result<bool> {
             .create_new(true)
             .open(target)?;
 
-        let rc =
-            unsafe { libc::ioctl(target_file.as_raw_fd(), libc::FICLONE, source_file.as_raw_fd()) };
+        let rc = unsafe {
+            libc::ioctl(
+                target_file.as_raw_fd(),
+                libc::FICLONE,
+                source_file.as_raw_fd(),
+            )
+        };
         if rc == 0 {
             return Ok(true);
         }

@@ -85,9 +85,10 @@ impl VaultPool {
         let temp_dir = TempDir::new().expect("failed to create temp dir");
         let vaults = (0..count)
             .map(|i| {
-                let db_path = temp_dir
-                    .path()
-                    .join(format!("vault_{}.{}", i, backend_type.extension()));
+                let db_path =
+                    temp_dir
+                        .path()
+                        .join(format!("vault_{}.{}", i, backend_type.extension()));
                 let backend = Arc::new(
                     VaultBackend::open(&db_path, backend_type).expect("failed to open vault"),
                 );

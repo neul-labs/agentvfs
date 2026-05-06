@@ -968,11 +968,9 @@ impl SqliteBackend {
             let file_id = if let Some(id) = existing_id {
                 // Snapshot current state into a version
                 let current_hash: Option<Vec<u8>> = conn
-                    .query_row(
-                        "SELECT content_hash FROM files WHERE id = ?",
-                        [id],
-                        |row| row.get(0),
-                    )
+                    .query_row("SELECT content_hash FROM files WHERE id = ?", [id], |row| {
+                        row.get(0)
+                    })
                     .optional()?;
 
                 if let Some(h) = current_hash {
@@ -1047,12 +1045,7 @@ impl SqliteBackend {
 
     /// Atomic directory creation: checks for duplicates and creates the
     /// directory entry + path in a single SQLite transaction.
-    pub fn create_directory_atomic(
-        &self,
-        parent_id: i64,
-        name: &str,
-        path: &str,
-    ) -> Result<i64> {
+    pub fn create_directory_atomic(&self, parent_id: i64, name: &str, path: &str) -> Result<i64> {
         let conn = self.conn.lock().unwrap();
         let now = Utc::now().timestamp();
 
@@ -1200,9 +1193,8 @@ impl SqliteBackend {
         parent_id: i64,
         parent_path: &str,
     ) -> Result<()> {
-        let mut stmt = conn.prepare(
-            "SELECT id, name, file_type FROM files WHERE parent_id = ? ORDER BY name",
-        )?;
+        let mut stmt = conn
+            .prepare("SELECT id, name, file_type FROM files WHERE parent_id = ? ORDER BY name")?;
 
         let children: Vec<(i64, String, bool)> = stmt
             .query_map([parent_id], |row| {

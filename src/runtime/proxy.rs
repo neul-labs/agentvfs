@@ -35,10 +35,7 @@ impl ExecutionContext {
         }
     }
 
-    fn transition(
-        &mut self,
-        next: ProxyExecutionState,
-    ) -> Result<()> {
+    fn transition(&mut self, next: ProxyExecutionState) -> Result<()> {
         if !self.state.can_transition_to(next) {
             return Err(VfsError::Internal(format!(
                 "invalid proxy state transition from {:?} to {:?}",
@@ -68,9 +65,7 @@ impl ProxyRuntime {
         })
     }
 
-    pub fn execute(&self,
-        request: ExecutionRequest,
-    ) -> Result<ExecutionResult> {
+    pub fn execute(&self, request: ExecutionRequest) -> Result<ExecutionResult> {
         let mut ctx = ExecutionContext::new();
         let result = self.execute_inner(request, &mut ctx);
 

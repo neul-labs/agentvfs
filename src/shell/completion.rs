@@ -14,9 +14,38 @@ use crate::vault::VaultManager;
 
 /// List of all available commands.
 pub const COMMANDS: &[&str] = &[
-    "vault", "ls", "cat", "checkpoint", "write", "mkdir", "rm", "cp", "mv", "tree", "pwd", "log", "checkout",
-    "revert", "diff", "search", "grep", "find", "tag", "untag", "meta", "import", "export", "exec",
-    "stats", "prune", "gc", "compact", "maintain", "quota", "audit", "snapshot",
+    "vault",
+    "ls",
+    "cat",
+    "checkpoint",
+    "write",
+    "mkdir",
+    "rm",
+    "cp",
+    "mv",
+    "tree",
+    "pwd",
+    "log",
+    "checkout",
+    "revert",
+    "diff",
+    "search",
+    "grep",
+    "find",
+    "tag",
+    "untag",
+    "meta",
+    "import",
+    "export",
+    "exec",
+    "stats",
+    "prune",
+    "gc",
+    "compact",
+    "maintain",
+    "quota",
+    "audit",
+    "snapshot",
     #[cfg(feature = "fuse")]
     "mount",
     #[cfg(feature = "fuse")]
@@ -24,12 +53,18 @@ pub const COMMANDS: &[&str] = &[
     #[cfg(feature = "fuse")]
     "proxy",
     // Built-in shell commands
-    "exit", "quit", "help", "clear",
+    "exit",
+    "quit",
+    "help",
+    "clear",
 ];
 
 /// Subcommands for commands that have them.
 pub const SUBCOMMANDS: &[(&str, &[&str])] = &[
-    ("vault", &["create", "list", "use", "delete", "info", "fork"]),
+    (
+        "vault",
+        &["create", "list", "use", "delete", "info", "fork"],
+    ),
     ("checkpoint", &["save", "list", "restore", "delete", "info"]),
     ("snapshot", &["save", "list", "restore", "delete", "info"]),
     ("quota", &["set", "clear"]),

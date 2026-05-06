@@ -32,7 +32,15 @@ impl DataGenerator {
 
     /// Generate searchable text content with embedded keywords.
     pub fn searchable_text(&mut self, size: usize, keywords: &[&str]) -> String {
-        let words = ["lorem", "ipsum", "dolor", "sit", "amet", "consectetur", "adipiscing"];
+        let words = [
+            "lorem",
+            "ipsum",
+            "dolor",
+            "sit",
+            "amet",
+            "consectetur",
+            "adipiscing",
+        ];
         let mut text = String::with_capacity(size);
 
         while text.len() < size {

@@ -788,7 +788,8 @@ impl LmdbBackend {
         // Update secondary index
         if let Some(old_parent) = old_parent_id {
             let old_index_key = format!("{}:{}", old_parent, old_name);
-            self.db_file_index.delete(&mut wtxn, old_index_key.as_bytes())?;
+            self.db_file_index
+                .delete(&mut wtxn, old_index_key.as_bytes())?;
         }
         let new_index_key = format!("{}:{}", new_parent_id, new_name);
         self.db_file_index

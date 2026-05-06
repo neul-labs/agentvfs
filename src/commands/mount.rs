@@ -64,7 +64,10 @@ pub fn run(args: MountArgs, output: &Output) -> Result<()> {
 
     if args.foreground {
         if !output.is_json() {
-            println!("Mounting {} at {} (foreground mode)", args.vault, args.mountpoint);
+            println!(
+                "Mounting {} at {} (foreground mode)",
+                args.vault, args.mountpoint
+            );
             println!("Press Ctrl+C to unmount");
         }
 
@@ -78,8 +81,10 @@ pub fn run(args: MountArgs, output: &Output) -> Result<()> {
     } else {
         if !output.is_json() {
             println!("Mounted {} at {}", args.vault, args.mountpoint);
-            println!("Use 'vfs unmount {}' or 'fusermount -u {}' to unmount",
-                args.mountpoint, args.mountpoint);
+            println!(
+                "Use 'vfs unmount {}' or 'fusermount -u {}' to unmount",
+                args.mountpoint, args.mountpoint
+            );
         }
 
         let session = MountSession::spawn(
@@ -90,9 +95,7 @@ pub fn run(args: MountArgs, output: &Output) -> Result<()> {
             args.allow_other,
             false,
         )?;
-        session
-            .mountpoint()
-            .to_path_buf();
+        session.mountpoint().to_path_buf();
 
         std::thread::park();
     }

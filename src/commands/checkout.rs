@@ -36,9 +36,9 @@ pub fn run(args: CheckoutArgs, output: &Output, vault: Option<String>) -> Result
     let entry = fs.get_entry(&args.path)?;
 
     if !entry.is_file() {
-        return Err(crate::error::VfsError::NotAFile(
-            std::path::PathBuf::from(&args.path),
-        ));
+        return Err(crate::error::VfsError::NotAFile(std::path::PathBuf::from(
+            &args.path,
+        )));
     }
 
     // Get the content from the specified version

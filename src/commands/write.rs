@@ -70,14 +70,20 @@ pub fn run(args: WriteArgs, output: &Output, vault: Option<String>) -> Result<()
     let quota_check = backend.check_quota(size as u64, new_file_count)?;
     if !quota_check.allowed {
         return Err(VfsError::QuotaExceeded(
-            quota_check.reason.unwrap_or_else(|| "quota exceeded".to_string()),
+            quota_check
+                .reason
+                .unwrap_or_else(|| "quota exceeded".to_string()),
         ));
     }
 
     fs.write_file(&args.path, &final_content)?;
 
     // Log the operation
-    let op = if is_new_file { "create_file" } else { "write_file" };
+    let op = if is_new_file {
+        "create_file"
+    } else {
+        "write_file"
+    };
     let details = serde_json::json!({ "size": size });
     let _ = backend.log_operation(op, Some(&args.path), Some(&details.to_string()));
 

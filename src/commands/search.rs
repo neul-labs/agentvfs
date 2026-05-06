@@ -75,7 +75,10 @@ pub fn run(args: SearchArgs, output: &Output, vault: Option<String>) -> Result<(
             for result in results {
                 println!("{}:", result.path);
                 // Format snippet with highlighting markers
-                let snippet = result.snippet.replace(">>>>", "\x1b[1;33m").replace("<<<<", "\x1b[0m");
+                let snippet = result
+                    .snippet
+                    .replace(">>>>", "\x1b[1;33m")
+                    .replace("<<<<", "\x1b[0m");
                 println!("  {}\n", snippet);
             }
         }

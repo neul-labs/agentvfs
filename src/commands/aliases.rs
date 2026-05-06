@@ -28,14 +28,39 @@ pub struct AliasesArgs {
 
 /// List of commands to create aliases for.
 const ALIAS_COMMANDS: &[&str] = &[
-    "ls", "cat", "write", "mkdir", "rm", "cp", "mv", "tree", "pwd",
-    "log", "checkout", "revert", "diff",
-    "search", "grep", "find",
-    "tag", "untag", "meta",
-    "import", "export", "exec",
-    "stats", "prune", "gc", "compact", "maintain",
-    "quota", "audit", "snapshot", "checkpoint",
-    "vault", "shell",
+    "ls",
+    "cat",
+    "write",
+    "mkdir",
+    "rm",
+    "cp",
+    "mv",
+    "tree",
+    "pwd",
+    "log",
+    "checkout",
+    "revert",
+    "diff",
+    "search",
+    "grep",
+    "find",
+    "tag",
+    "untag",
+    "meta",
+    "import",
+    "export",
+    "exec",
+    "stats",
+    "prune",
+    "gc",
+    "compact",
+    "maintain",
+    "quota",
+    "audit",
+    "snapshot",
+    "checkpoint",
+    "vault",
+    "shell",
     #[cfg(feature = "fuse")]
     "mount",
     #[cfg(feature = "fuse")]
@@ -82,8 +107,10 @@ pub fn run(args: AliasesArgs, output: &Output) -> Result<()> {
         };
 
         println!("{} vfs aliases - add to your shell config", comment);
-        println!("{} Generated with: vfs aliases --shell {:?} --prefix {}",
-            comment, args.shell, prefix);
+        println!(
+            "{} Generated with: vfs aliases --shell {:?} --prefix {}",
+            comment, args.shell, prefix
+        );
         println!();
 
         // Print aliases

@@ -90,15 +90,15 @@ pub fn run(args: VaultArgs, output: &Output) -> Result<()> {
 
     match args.command {
         VaultCommand::Create { name, backend } => {
-            let backend_type: BackendType = backend.parse().map_err(|e: String| {
-                crate::error::VfsError::InvalidPath(e)
-            })?;
+            let backend_type: BackendType = backend
+                .parse()
+                .map_err(|e: String| crate::error::VfsError::InvalidPath(e))?;
 
             // Check if the feature is enabled for the requested backend
             #[cfg(not(feature = "sled-backend"))]
             if matches!(backend_type, BackendType::Sqlite) == false {
                 return Err(crate::error::VfsError::Internal(
-                    "sled backend requires the 'sled-backend' feature to be enabled".to_string()
+                    "sled backend requires the 'sled-backend' feature to be enabled".to_string(),
                 ));
             }
 
@@ -149,7 +149,10 @@ pub fn run(args: VaultArgs, output: &Output) -> Result<()> {
         }
         VaultCommand::Delete { name, yes } => {
             if !yes && !output.is_json() {
-                eprintln!("Warning: This will permanently delete vault '{}' and all its contents.", name);
+                eprintln!(
+                    "Warning: This will permanently delete vault '{}' and all its contents.",
+                    name
+                );
                 eprintln!("Use -y flag to confirm deletion.");
                 return Ok(());
             }
@@ -165,7 +168,9 @@ pub fn run(args: VaultArgs, output: &Output) -> Result<()> {
         VaultCommand::Info { name } => {
             let vault_name = match name {
                 Some(n) => n,
-                None => manager.current()?.ok_or(crate::error::VfsError::NoActiveVault)?,
+                None => manager
+                    .current()?
+                    .ok_or(crate::error::VfsError::NoActiveVault)?,
             };
             let info = manager.info(&vault_name)?;
             let config = crate::vault::Config::new()?;
@@ -190,7 +195,11 @@ pub fn run(args: VaultArgs, output: &Output) -> Result<()> {
                 println!("Path: {}", config.vault_path(&info.name).display());
             }
         }
-        VaultCommand::Fork { source, name, r#use } => {
+        VaultCommand::Fork {
+            source,
+            name,
+            r#use,
+        } => {
             let info = WorkspaceService::new()?.fork(&source, &name)?;
 
             if r#use {

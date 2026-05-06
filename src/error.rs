@@ -94,18 +94,18 @@ impl VfsError {
     pub fn to_json(&self) -> serde_json::Value {
         let (error_type, message, path) = match self {
             VfsError::NotFound(p) => ("NotFound", self.to_string(), Some(p.display().to_string())),
-            VfsError::AlreadyExists(p) => {
-                ("AlreadyExists", self.to_string(), Some(p.display().to_string()))
-            }
-            VfsError::NotADirectory(p) => {
-                ("NotADirectory", self.to_string(), Some(p.display().to_string()))
-            }
-            VfsError::NotAFile(p) => {
-                ("NotAFile", self.to_string(), Some(p.display().to_string()))
-            }
-            VfsError::NotEmpty(p) => {
-                ("NotEmpty", self.to_string(), Some(p.display().to_string()))
-            }
+            VfsError::AlreadyExists(p) => (
+                "AlreadyExists",
+                self.to_string(),
+                Some(p.display().to_string()),
+            ),
+            VfsError::NotADirectory(p) => (
+                "NotADirectory",
+                self.to_string(),
+                Some(p.display().to_string()),
+            ),
+            VfsError::NotAFile(p) => ("NotAFile", self.to_string(), Some(p.display().to_string())),
+            VfsError::NotEmpty(p) => ("NotEmpty", self.to_string(), Some(p.display().to_string())),
             VfsError::InvalidPath(s) => ("InvalidPath", self.to_string(), Some(s.clone())),
             VfsError::InvalidInput(s) => ("InvalidInput", self.to_string(), Some(s.clone())),
             VfsError::VaultNotFound(s) => ("VaultNotFound", self.to_string(), Some(s.clone())),

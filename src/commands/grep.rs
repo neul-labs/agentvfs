@@ -61,14 +61,20 @@ pub fn run(args: GrepArgs, output: &Output, vault: Option<String>) -> Result<()>
         args.pattern.clone()
     };
 
-    let re = Regex::new(&pattern).map_err(|e| {
-        crate::error::VfsError::Internal(format!("Invalid regex pattern: {}", e))
-    })?;
+    let re = Regex::new(&pattern)
+        .map_err(|e| crate::error::VfsError::Internal(format!("Invalid regex pattern: {}", e)))?;
 
     let mut matches = Vec::new();
 
     // Recursively search files
-    search_directory(&fs, &args.path, &re, args.line_numbers, &mut matches, args.limit)?;
+    search_directory(
+        &fs,
+        &args.path,
+        &re,
+        args.line_numbers,
+        &mut matches,
+        args.limit,
+    )?;
 
     if output.is_json() {
         output.print_json(&GrepOutput {

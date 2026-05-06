@@ -185,7 +185,8 @@ impl AgentWorkload {
 
         for _ in 0..self.config.ops_per_agent {
             let op = self.select_operation(&mut rng);
-            let result = self.execute_operation(fs, op, &prefix, &mut gen, &mut rng, &mut created_files);
+            let result =
+                self.execute_operation(fs, op, &prefix, &mut gen, &mut rng, &mut created_files);
 
             match result {
                 Ok(_) => {
@@ -211,7 +212,8 @@ impl AgentWorkload {
             Operation::Write => {
                 self.stats.write_count.fetch_add(1, Ordering::Relaxed);
                 let path = gen.path(prefix);
-                let size = gen.file_size(self.config.file_size_range.0, self.config.file_size_range.1);
+                let size =
+                    gen.file_size(self.config.file_size_range.0, self.config.file_size_range.1);
                 let content = gen.content(size);
                 let res = fs.write_file(&path, &content);
                 if res.is_ok() {
@@ -236,8 +238,8 @@ impl AgentWorkload {
                 if self.config.search_keywords.is_empty() {
                     return Err(());
                 }
-                let keyword =
-                    &self.config.search_keywords[rng.gen_range(0..self.config.search_keywords.len())];
+                let keyword = &self.config.search_keywords
+                    [rng.gen_range(0..self.config.search_keywords.len())];
                 fs.backend()
                     .search_content(keyword, 10)
                     .map(|_| ())

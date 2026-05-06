@@ -60,10 +60,7 @@ pub fn run(args: MetaArgs, output: &Output, vault: Option<String>) -> Result<()>
     // Handle --export: export metadata as JSON
     if args.export {
         let metadata = backend.get_all_metadata(entry.id)?;
-        let map: HashMap<String, String> = metadata
-            .into_iter()
-            .map(|m| (m.key, m.value))
-            .collect();
+        let map: HashMap<String, String> = metadata.into_iter().map(|m| (m.key, m.value)).collect();
 
         if output.is_json() {
             output.print_json(&MetaListOutput {
@@ -79,9 +76,8 @@ pub fn run(args: MetaArgs, output: &Output, vault: Option<String>) -> Result<()>
 
     // Handle --import: import metadata from JSON
     if let Some(ref json_str) = args.import {
-        let map: HashMap<String, String> = serde_json::from_str(json_str).map_err(|e| {
-            crate::error::VfsError::Internal(format!("invalid JSON: {}", e))
-        })?;
+        let map: HashMap<String, String> = serde_json::from_str(json_str)
+            .map_err(|e| crate::error::VfsError::Internal(format!("invalid JSON: {}", e)))?;
 
         for (key, value) in &map {
             backend.set_metadata(entry.id, key, value)?;
@@ -158,10 +154,7 @@ pub fn run(args: MetaArgs, output: &Output, vault: Option<String>) -> Result<()>
 
     // Default: meta <path> - list all metadata
     let metadata = backend.get_all_metadata(entry.id)?;
-    let map: HashMap<String, String> = metadata
-        .into_iter()
-        .map(|m| (m.key, m.value))
-        .collect();
+    let map: HashMap<String, String> = metadata.into_iter().map(|m| (m.key, m.value)).collect();
 
     if output.is_json() {
         output.print_json(&MetaListOutput {

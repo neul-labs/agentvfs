@@ -1,6 +1,6 @@
 //! checkpoint command - alias for snapshot management.
 
-pub use crate::commands::snapshot::{SnapshotArgs as CheckpointArgs};
+pub use crate::commands::snapshot::SnapshotArgs as CheckpointArgs;
 
 use crate::commands::Output;
 use crate::error::Result;

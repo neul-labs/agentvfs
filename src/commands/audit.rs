@@ -1,7 +1,7 @@
 //! Audit log command.
 
-use clap::{Args, Subcommand};
 use chrono::{DateTime, TimeZone, Utc};
+use clap::{Args, Subcommand};
 use serde::Serialize;
 
 use crate::commands::Output;
@@ -59,15 +59,24 @@ impl std::fmt::Display for AuditListOutput {
 
         for entry in &self.entries {
             let path_str = entry.path.as_deref().unwrap_or("-");
-            let details_str = entry.details
+            let details_str = entry
+                .details
                 .as_ref()
                 .map(|d| d.to_string())
                 .unwrap_or_default();
 
             if details_str.is_empty() {
-                writeln!(f, "{} | {:12} | {}", entry.timestamp, entry.operation, path_str)?;
+                writeln!(
+                    f,
+                    "{} | {:12} | {}",
+                    entry.timestamp, entry.operation, path_str
+                )?;
             } else {
-                writeln!(f, "{} | {:12} | {} | {}", entry.timestamp, entry.operation, path_str, details_str)?;
+                writeln!(
+                    f,
+                    "{} | {:12} | {} | {}",
+                    entry.timestamp, entry.operation, path_str, details_str
+                )?;
             }
         }
 
@@ -137,13 +146,13 @@ pub fn run(args: AuditArgs, output: &Output, vault: Option<String>) -> Result<()
             let output_entries: Vec<AuditEntryOutput> = entries
                 .into_iter()
                 .map(|e| {
-                    let ts = Utc.timestamp_opt(e.timestamp, 0)
+                    let ts = Utc
+                        .timestamp_opt(e.timestamp, 0)
                         .single()
                         .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
                         .unwrap_or_else(|| e.timestamp.to_string());
 
-                    let details = e.details
-                        .and_then(|d| serde_json::from_str(&d).ok());
+                    let details = e.details.and_then(|d| serde_json::from_str(&d).ok());
 
                     AuditEntryOutput {
                         id: e.id,

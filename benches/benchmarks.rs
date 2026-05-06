@@ -839,13 +839,19 @@ fn bench_fuse_ripgrep(c: &mut Criterion) {
 
                     // Create searchable files with keywords
                     for i in 0..count {
-                        let content = gen.searchable_text(2048, &["benchmark", "important", "test"]);
+                        let content =
+                            gen.searchable_text(2048, &["benchmark", "important", "test"]);
                         std::fs::write(bench_dir.join(format!("doc_{}.txt", i)), content).unwrap();
                     }
 
                     b.iter(|| {
                         Command::new("rg")
-                            .args(["--no-ignore", "-c", "benchmark", bench_dir.to_str().unwrap()])
+                            .args([
+                                "--no-ignore",
+                                "-c",
+                                "benchmark",
+                                bench_dir.to_str().unwrap(),
+                            ])
                             .output()
                     });
                 },
@@ -1073,4 +1079,8 @@ criterion_main!(
 );
 
 #[cfg(not(feature = "fuse"))]
-criterion_main!(single_vault_throughput, single_vault_concurrent, multi_vault_scale);
+criterion_main!(
+    single_vault_throughput,
+    single_vault_concurrent,
+    multi_vault_scale
+);

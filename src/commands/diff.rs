@@ -60,9 +60,9 @@ pub fn run(args: DiffArgs, output: &Output, vault: Option<String>) -> Result<()>
         // Comparing versions of the same file
         let entry = fs.get_entry(&args.path1)?;
         if !entry.is_file() {
-            return Err(crate::error::VfsError::NotAFile(
-                std::path::PathBuf::from(&args.path1),
-            ));
+            return Err(crate::error::VfsError::NotAFile(std::path::PathBuf::from(
+                &args.path1,
+            )));
         }
         let content = backend.get_version_content(entry.id, v1)?;
         (content, format!("{} (v{})", args.path1, v1))

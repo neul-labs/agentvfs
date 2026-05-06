@@ -147,9 +147,9 @@ pub fn run(args: QuotaArgs, output: &Output, vault: Option<String>) -> Result<()
                 (stats.total_size_bytes as f64 / max_bytes as f64) * 100.0
             });
 
-            let files_usage = quotas.max_files.map(|max| {
-                (stats.files as f64 / max as f64) * 100.0
-            });
+            let files_usage = quotas
+                .max_files
+                .map(|max| (stats.files as f64 / max as f64) * 100.0);
 
             let result = QuotaOutput {
                 current_size_bytes: stats.total_size_bytes,

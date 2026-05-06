@@ -39,9 +39,9 @@ pub fn run(args: CatArgs, output: &Output, vault: Option<String>) -> Result<()> 
         // Read specific version
         let entry = fs.get_entry(&args.path)?;
         if !entry.is_file() {
-            return Err(crate::error::VfsError::NotAFile(
-                std::path::PathBuf::from(&args.path),
-            ));
+            return Err(crate::error::VfsError::NotAFile(std::path::PathBuf::from(
+                &args.path,
+            )));
         }
         backend.get_version_content(entry.id, version_num)?
     } else {

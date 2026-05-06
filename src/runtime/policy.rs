@@ -41,7 +41,9 @@ impl PolicyEngine {
             return ExecutionDecision {
                 action: PolicyAction::Deny,
                 categories: categories.into_iter().collect(),
-                reason: Some("command references likely host paths outside the workspace".to_string()),
+                reason: Some(
+                    "command references likely host paths outside the workspace".to_string(),
+                ),
             };
         }
 
@@ -81,7 +83,10 @@ fn is_read_only(program: &str, tokens: &[String]) -> bool {
     matches!(
         program,
         "ls" | "cat" | "grep" | "rg" | "find" | "tree" | "pwd" | "echo" | "git"
-    ) && !matches!(tokens.get(1).map(String::as_str), Some("clone" | "clean" | "reset" | "restore"))
+    ) && !matches!(
+        tokens.get(1).map(String::as_str),
+        Some("clone" | "clean" | "reset" | "restore")
+    )
 }
 
 fn is_destructive(program: &str, tokens: &[String]) -> bool {
@@ -97,15 +102,24 @@ fn is_networked(program: &str, tokens: &[String]) -> bool {
         return true;
     }
 
-    if program == "git" && matches!(tokens.get(1).map(String::as_str), Some("clone" | "fetch" | "pull")) {
+    if program == "git"
+        && matches!(
+            tokens.get(1).map(String::as_str),
+            Some("clone" | "fetch" | "pull")
+        )
+    {
         return true;
     }
 
-    if matches!(program, "npm" | "pnpm" | "yarn") && matches!(tokens.get(1).map(String::as_str), Some("install" | "add")) {
+    if matches!(program, "npm" | "pnpm" | "yarn")
+        && matches!(tokens.get(1).map(String::as_str), Some("install" | "add"))
+    {
         return true;
     }
 
-    if matches!(program, "cargo") && matches!(tokens.get(1).map(String::as_str), Some("install" | "add")) {
+    if matches!(program, "cargo")
+        && matches!(tokens.get(1).map(String::as_str), Some("install" | "add"))
+    {
         return true;
     }
 
@@ -130,7 +144,7 @@ fn is_interactive(program: &str, tokens: &[String]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::PolicyEngine;
-    use crate::runtime::execution::{CommandSpec, ExecutionRequest, PolicyAction, CheckpointMode};
+    use crate::runtime::execution::{CheckpointMode, CommandSpec, ExecutionRequest, PolicyAction};
 
     fn argv(parts: &[&str]) -> ExecutionRequest {
         use crate::runtime::execution::ExecutionTimeout;

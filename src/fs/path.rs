@@ -131,10 +131,7 @@ pub fn components(path: &str) -> Result<Vec<String>> {
         return Ok(Vec::new());
     }
 
-    Ok(normalized[1..]
-        .split('/')
-        .map(|s| s.to_string())
-        .collect())
+    Ok(normalized[1..].split('/').map(|s| s.to_string()).collect())
 }
 
 /// Get the filename (last component) of a path.
@@ -180,7 +177,10 @@ mod tests {
     #[test]
     fn test_split() {
         assert_eq!(split("/").unwrap(), (None, "".to_string()));
-        assert_eq!(split("/a").unwrap(), (Some("/".to_string()), "a".to_string()));
+        assert_eq!(
+            split("/a").unwrap(),
+            (Some("/".to_string()), "a".to_string())
+        );
         assert_eq!(
             split("/a/b").unwrap(),
             (Some("/a".to_string()), "b".to_string())

@@ -33,12 +33,20 @@ struct TreeJsonNode {
 impl From<&TreeNode> for TreeJsonNode {
     fn from(node: &TreeNode) -> Self {
         TreeJsonNode {
-            name: if node.name.is_empty() { "/".to_string() } else { node.name.clone() },
+            name: if node.name.is_empty() {
+                "/".to_string()
+            } else {
+                node.name.clone()
+            },
             file_type: match node.file_type {
                 FileType::Directory => "directory".to_string(),
                 FileType::File => "file".to_string(),
             },
-            size: if node.file_type.is_file() { Some(node.size) } else { None },
+            size: if node.file_type.is_file() {
+                Some(node.size)
+            } else {
+                None
+            },
             children: node.children.iter().map(TreeJsonNode::from).collect(),
         }
     }

@@ -209,5 +209,9 @@ fn main() {
 }
 
 fn normalize_exit_code(code: i32) -> i32 {
-    if code > 0 { code } else { 1 }
+    if code > 0 {
+        code
+    } else {
+        1
+    }
 }

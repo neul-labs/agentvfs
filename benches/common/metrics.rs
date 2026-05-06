@@ -50,8 +50,7 @@ impl IoStats {
     /// Capture current I/O stats from /proc.
     pub fn capture() -> Self {
         let pid = std::process::id();
-        let io_content =
-            std::fs::read_to_string(format!("/proc/{}/io", pid)).unwrap_or_default();
+        let io_content = std::fs::read_to_string(format!("/proc/{}/io", pid)).unwrap_or_default();
 
         let mut read_bytes = 0u64;
         let mut write_bytes = 0u64;

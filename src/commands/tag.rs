@@ -76,7 +76,10 @@ pub fn run(args: TagArgs, output: &Output, vault: Option<String>) -> Result<()> 
         let tag_infos: Vec<TagInfo> = tags
             .iter()
             .map(|t| {
-                let file_count = backend.get_files_with_tag(t.id).map(|f| f.len()).unwrap_or(0);
+                let file_count = backend
+                    .get_files_with_tag(t.id)
+                    .map(|f| f.len())
+                    .unwrap_or(0);
                 TagInfo {
                     name: t.name.clone(),
                     file_count,
@@ -204,12 +207,14 @@ pub fn run(args: TagArgs, output: &Output, vault: Option<String>) -> Result<()> 
     }
 
     // Default: add tag to file
-    let path = args.path.as_ref().ok_or_else(|| {
-        crate::error::VfsError::Internal("path required".to_string())
-    })?;
-    let tag_name = args.tag.as_ref().ok_or_else(|| {
-        crate::error::VfsError::Internal("tag name required".to_string())
-    })?;
+    let path = args
+        .path
+        .as_ref()
+        .ok_or_else(|| crate::error::VfsError::Internal("path required".to_string()))?;
+    let tag_name = args
+        .tag
+        .as_ref()
+        .ok_or_else(|| crate::error::VfsError::Internal("tag name required".to_string()))?;
 
     let entry = fs.get_entry(path)?;
     let tag_id = backend.get_or_create_tag(tag_name)?;

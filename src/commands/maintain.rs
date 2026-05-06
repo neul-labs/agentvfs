@@ -53,19 +53,33 @@ impl std::fmt::Display for MaintainOutput {
         writeln!(f, "===================")?;
         writeln!(f)?;
         writeln!(f, "Initial state:")?;
-        writeln!(f, "  Files: {}, Versions: {}, Blobs: {}",
-            self.initial_files, self.initial_versions, self.initial_blobs)?;
+        writeln!(
+            f,
+            "  Files: {}, Versions: {}, Blobs: {}",
+            self.initial_files, self.initial_versions, self.initial_blobs
+        )?;
         writeln!(f, "  Size: {}", format_size(self.initial_size_bytes))?;
         writeln!(f)?;
         writeln!(f, "Operations:")?;
         writeln!(f, "  Versions pruned: {}", self.versions_pruned)?;
-        writeln!(f, "  Orphans deleted: {} ({})",
-            self.orphans_deleted, format_size(self.bytes_freed_gc))?;
-        writeln!(f, "  Compaction saved: {}", format_size(self.bytes_freed_compact))?;
+        writeln!(
+            f,
+            "  Orphans deleted: {} ({})",
+            self.orphans_deleted,
+            format_size(self.bytes_freed_gc)
+        )?;
+        writeln!(
+            f,
+            "  Compaction saved: {}",
+            format_size(self.bytes_freed_compact)
+        )?;
         writeln!(f)?;
         writeln!(f, "Final state:")?;
-        writeln!(f, "  Files: {}, Versions: {}, Blobs: {}",
-            self.final_files, self.final_versions, self.final_blobs)?;
+        writeln!(
+            f,
+            "  Files: {}, Versions: {}, Blobs: {}",
+            self.final_files, self.final_versions, self.final_blobs
+        )?;
         writeln!(f, "  Size: {}", format_size(self.final_size_bytes))?;
         Ok(())
     }
@@ -113,8 +127,10 @@ pub fn run(args: MaintainArgs, output: &Output, vault: Option<String>) -> Result
         versions_pruned = prune_stats.versions_deleted;
 
         if !output.is_json() {
-            println!("Pruned {} versions from {} files",
-                prune_stats.versions_deleted, prune_stats.files_processed);
+            println!(
+                "Pruned {} versions from {} files",
+                prune_stats.versions_deleted, prune_stats.files_processed
+            );
         }
     }
 
@@ -126,8 +142,11 @@ pub fn run(args: MaintainArgs, output: &Output, vault: Option<String>) -> Result
         bytes_freed_gc = gc_stats.bytes_freed;
 
         if !output.is_json() && gc_stats.orphans_deleted > 0 {
-            println!("Deleted {} orphaned blobs ({})",
-                gc_stats.orphans_deleted, format_size(gc_stats.bytes_freed));
+            println!(
+                "Deleted {} orphaned blobs ({})",
+                gc_stats.orphans_deleted,
+                format_size(gc_stats.bytes_freed)
+            );
         }
     }
 

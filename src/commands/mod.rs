@@ -3,8 +3,8 @@
 pub mod aliases;
 pub mod audit;
 pub mod cat;
-pub mod checkpoint;
 pub mod checkout;
+pub mod checkpoint;
 pub mod compact;
 pub mod cp;
 pub mod diff;
@@ -22,9 +22,9 @@ pub mod mkdir;
 #[cfg(feature = "fuse")]
 pub mod mount;
 pub mod mv;
-pub mod prune;
 #[cfg(feature = "fuse")]
 pub mod proxy;
+pub mod prune;
 pub mod quota;
 pub mod revert;
 pub mod rm;
