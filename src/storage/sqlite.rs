@@ -111,6 +111,34 @@ impl SqliteBackend {
             .unwrap_or_else(|| path.parent().unwrap_or(Path::new(".")).to_path_buf())
     }
 
+    /// In shared-blob mode, lazily (re)build the deferred FTS index if it is marked stale.
+    /// No-op in single-file mode (which indexes incrementally on write).
+    fn ensure_fts_index(&self) -> Result<()> {
+        if !self.is_shared() {
+            return Ok(());
+        }
+        let dirty = {
+            let conn = self.conn.lock().unwrap();
+            conn.query_row(
+                "SELECT value FROM settings WHERE key = 'fts_dirty'",
+                [],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()?
+            .as_deref()
+                == Some("1")
+        };
+        if dirty {
+            self.rebuild_search_index()?;
+            let conn = self.conn.lock().unwrap();
+            conn.execute(
+                "INSERT OR REPLACE INTO settings (key, value) VALUES ('fts_dirty', '0')",
+                [],
+            )?;
+        }
+        Ok(())
+    }
+
     /// Initialize the database schema.
     fn initialize_schema(&self) -> Result<()> {
         let conn = self.conn.lock().unwrap();
@@ -984,6 +1012,16 @@ impl SqliteBackend {
 
     /// Rebuild a single file's search index entry from stored content.
     pub fn sync_file_index(&self, file_id: i64, path: &str) -> Result<()> {
+        // Shared-blob mode defers indexing: mark stale, rebuild on demand at search time.
+        if self.is_shared() {
+            let conn = self.conn.lock().unwrap();
+            conn.execute(
+                "INSERT OR REPLACE INTO settings (key, value) VALUES ('fts_dirty', '1')",
+                [],
+            )?;
+            return Ok(());
+        }
+
         let conn = self.conn.lock().unwrap();
 
         conn.execute("DELETE FROM fts_content WHERE rowid = ?", [file_id])?;
@@ -1133,13 +1171,23 @@ impl SqliteBackend {
                 file_id
             };
 
-            // Update FTS index: always delete old entry, then re-insert if valid UTF-8
-            conn.execute("DELETE FROM fts_content WHERE rowid = ?", [file_id])?;
-            if let Ok(text) = String::from_utf8(content.to_vec()) {
+            // Update the search index. In shared-blob mode indexing is *deferred*: storing the
+            // FTS content here would duplicate file content into the per-vault metadata DB and
+            // defeat O(metadata) fork, so we only mark the index stale and rebuild it on demand
+            // at search time (reading content back from the shared store).
+            if self.is_shared() {
                 conn.execute(
-                    "INSERT INTO fts_content (rowid, path, content) VALUES (?, ?, ?)",
-                    params![file_id, path, text],
+                    "INSERT OR REPLACE INTO settings (key, value) VALUES ('fts_dirty', '1')",
+                    [],
                 )?;
+            } else {
+                conn.execute("DELETE FROM fts_content WHERE rowid = ?", [file_id])?;
+                if let Ok(text) = String::from_utf8(content.to_vec()) {
+                    conn.execute(
+                        "INSERT INTO fts_content (rowid, path, content) VALUES (?, ?, ?)",
+                        params![file_id, path, text],
+                    )?;
+                }
             }
 
             Ok(file_id)
@@ -1407,6 +1455,9 @@ impl SqliteBackend {
         query: &str,
         limit: usize,
     ) -> Result<Vec<crate::fs::SearchResult>> {
+        // Shared mode defers indexing; ensure the index is current before querying.
+        self.ensure_fts_index()?;
+
         let conn = self.conn.lock().unwrap();
 
         let mut stmt = conn.prepare(

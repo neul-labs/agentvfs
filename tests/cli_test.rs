@@ -733,4 +733,12 @@ fn test_shared_blob_fork_shares_content() {
         .success()
         .stdout(predicate::str::contains("hello from base"))
         .stdout(predicate::str::contains("changed in f1").not());
+
+    // Deferred FTS: search still works in shared mode via on-demand (lazy) index rebuild.
+    avfs()
+        .env("HOME", home.path())
+        .args(["--vault", "base", "search", "hello"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("/hello.txt"));
 }
