@@ -5,6 +5,8 @@ use serde::Serialize;
 
 use crate::commands::Output;
 use crate::error::Result;
+use crate::runtime::workspace::WorkspaceService;
+use crate::storage::StorageMode;
 use crate::vault::VaultManager;
 
 #[derive(Args)]
@@ -12,6 +14,10 @@ pub struct GcArgs {
     /// Show what would be deleted without deleting
     #[arg(long)]
     pub dry_run: bool,
+    /// (shared-blob stores) skip blobs created within this many seconds, to avoid racing a
+    /// concurrent writer. Default 0 (assumes the store is quiescent).
+    #[arg(long, default_value_t = 0)]
+    pub grace_secs: i64,
 }
 
 #[derive(Serialize)]
@@ -63,6 +69,22 @@ pub fn run(args: GcArgs, output: &Output, vault: Option<String>) -> Result<()> {
         Some(name) => manager.open(&name)?,
         None => manager.open_current()?,
     };
+
+    // Shared-blob stores are reclaimed store-wide (mark-sweep across all vaults), since blobs
+    // are owned by the store rather than any single vault.
+    if backend.storage_mode() == StorageMode::SharedBlob {
+        let (orphans, bytes) =
+            WorkspaceService::new()?.gc_shared_store(args.grace_secs, args.dry_run)?;
+        let result = GcOutput {
+            orphans_found: orphans,
+            orphans_deleted: if args.dry_run { 0 } else { orphans },
+            bytes_freed: bytes,
+            bytes_freed_human: format_size(bytes),
+            dry_run: args.dry_run,
+        };
+        output.print(&result);
+        return Ok(());
+    }
 
     // Recalculate reference counts first
     backend.recalculate_ref_counts()?;

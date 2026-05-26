@@ -108,6 +108,26 @@ impl WorkspaceService {
         Ok(backend)
     }
 
+    /// Store-wide mark-sweep GC of the shared blob store: collect every content hash referenced
+    /// by any vault in this store, then delete (or, if `dry_run`, just count) blobs that nothing
+    /// references and that are older than `grace_secs`. Returns (orphaned blobs, bytes).
+    ///
+    /// This is the shared-mode replacement for per-vault refcount GC: shared blobs are owned by
+    /// the store, not any single vault, and fork copies references without touching the store.
+    pub fn gc_shared_store(&self, grace_secs: i64, dry_run: bool) -> Result<(u64, u64)> {
+        use std::collections::HashSet;
+
+        let blobs = crate::storage::BlobStore::open_shared(self.config.base_dir())?;
+        let mut live: HashSet<Vec<u8>> = HashSet::new();
+        for name in self.config.list_vaults()? {
+            let backend = self.open(&name)?;
+            for hash in backend.referenced_content_hashes()? {
+                live.insert(hash);
+            }
+        }
+        blobs.delete_missing(&live, grace_secs, dry_run)
+    }
+
     pub fn fork(&self, source: &str, name: &str) -> Result<ForkInfo> {
         validate_workspace_name(source)?;
         validate_workspace_name(name)?;

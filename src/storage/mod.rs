@@ -163,6 +163,28 @@ impl VaultBackend {
         }
     }
 
+    /// This vault's storage mode (non-SQLite backends are always single-file).
+    pub fn storage_mode(&self) -> StorageMode {
+        match self {
+            Self::Sqlite(backend) => backend.storage_mode(),
+            #[cfg(feature = "sled-backend")]
+            Self::Sled(_) => StorageMode::SingleFile,
+            #[cfg(feature = "lmdb-backend")]
+            Self::Lmdb(_) => StorageMode::SingleFile,
+        }
+    }
+
+    /// Content hashes referenced by this vault's metadata (for store-wide shared-blob GC).
+    pub fn referenced_content_hashes(&self) -> Result<Vec<Vec<u8>>> {
+        match self {
+            Self::Sqlite(backend) => backend.referenced_content_hashes(),
+            #[cfg(feature = "sled-backend")]
+            Self::Sled(_) => Ok(Vec::new()),
+            #[cfg(feature = "lmdb-backend")]
+            Self::Lmdb(_) => Ok(Vec::new()),
+        }
+    }
+
     pub fn get_entry_by_path(&self, path: &str) -> Result<FileEntry> {
         match self {
             Self::Sqlite(backend) => backend.get_entry_by_path(path),

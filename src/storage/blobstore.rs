@@ -142,10 +142,16 @@ impl BlobStore {
         .map_err(Into::into)
     }
 
-    /// Mark-sweep garbage collection: delete every blob whose hash is not in `live`, skipping
-    /// blobs created within `grace_secs` (to avoid racing a concurrent writer that has stored a
-    /// blob but not yet committed its referencing metadata). Returns (blobs deleted, bytes freed).
-    pub fn delete_missing(&self, live: &HashSet<Vec<u8>>, grace_secs: i64) -> Result<(u64, u64)> {
+    /// Mark-sweep garbage collection: identify (and unless `dry_run`, delete) every blob whose
+    /// hash is not in `live`, skipping blobs created within `grace_secs` (to avoid racing a
+    /// concurrent writer that has stored a blob but not yet committed its referencing metadata).
+    /// Returns (orphaned blobs, bytes) — the amount deleted, or that would be deleted if dry-run.
+    pub fn delete_missing(
+        &self,
+        live: &HashSet<Vec<u8>>,
+        grace_secs: i64,
+        dry_run: bool,
+    ) -> Result<(u64, u64)> {
         let conn = self.conn.lock().unwrap();
         let cutoff = Utc::now().timestamp() - grace_secs;
 
@@ -157,18 +163,20 @@ impl BlobStore {
             collected
         };
 
-        let mut deleted = 0u64;
-        let mut bytes_freed = 0u64;
+        let mut orphans = 0u64;
+        let mut bytes = 0u64;
         for (hash, size, created_at) in rows {
             if created_at > cutoff {
                 continue; // within grace window
             }
             if !live.contains(&hash) {
-                conn.execute("DELETE FROM contents WHERE hash = ?", [hash.as_slice()])?;
-                deleted += 1;
-                bytes_freed += size as u64;
+                if !dry_run {
+                    conn.execute("DELETE FROM contents WHERE hash = ?", [hash.as_slice()])?;
+                }
+                orphans += 1;
+                bytes += size as u64;
             }
         }
-        Ok((deleted, bytes_freed))
+        Ok((orphans, bytes))
     }
 }

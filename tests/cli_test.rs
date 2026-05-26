@@ -742,3 +742,59 @@ fn test_shared_blob_fork_shares_content() {
         .success()
         .stdout(predicate::str::contains("/hello.txt"));
 }
+
+#[test]
+fn test_shared_blob_gc_reclaims_orphans() {
+    let home = tempdir().unwrap();
+
+    // Two shared-blob vaults with distinct content (two blobs in the shared store).
+    avfs()
+        .env("HOME", home.path())
+        .args(["vault", "create", "base", "--shared-blob"])
+        .assert()
+        .success();
+    avfs()
+        .env("HOME", home.path())
+        .args(["--vault", "base", "write", "/a.txt", "unique-aaa-content"])
+        .assert()
+        .success();
+    avfs()
+        .env("HOME", home.path())
+        .args(["vault", "create", "other", "--shared-blob"])
+        .assert()
+        .success();
+    avfs()
+        .env("HOME", home.path())
+        .args(["--vault", "other", "write", "/b.txt", "unique-bbb-content"])
+        .assert()
+        .success();
+
+    // Both blobs are referenced: store-wide GC finds nothing to reclaim.
+    avfs()
+        .env("HOME", home.path())
+        .args(["--vault", "base", "gc", "--dry-run"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Found 0 orphaned"));
+
+    // Delete one vault; its blob is now unreferenced and GC reclaims exactly it.
+    avfs()
+        .env("HOME", home.path())
+        .args(["vault", "delete", "base", "-y"])
+        .assert()
+        .success();
+    avfs()
+        .env("HOME", home.path())
+        .args(["--vault", "other", "gc"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Deleted 1 orphaned"));
+
+    // The surviving vault's content is intact.
+    avfs()
+        .env("HOME", home.path())
+        .args(["--vault", "other", "cat", "/b.txt"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("unique-bbb-content"));
+}

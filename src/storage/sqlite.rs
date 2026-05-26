@@ -102,6 +102,27 @@ impl SqliteBackend {
         matches!(self.mode, StorageMode::SharedBlob)
     }
 
+    /// This vault's storage mode.
+    pub fn storage_mode(&self) -> StorageMode {
+        self.mode
+    }
+
+    /// All content hashes referenced by this vault's metadata (files, versions, snapshots).
+    /// Used by store-wide mark-sweep GC of the shared blob store.
+    pub fn referenced_content_hashes(&self) -> Result<Vec<Vec<u8>>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT content_hash FROM files WHERE content_hash IS NOT NULL
+             UNION SELECT content_hash FROM file_versions WHERE content_hash IS NOT NULL
+             UNION SELECT content_hash FROM snapshot_files WHERE content_hash IS NOT NULL
+             UNION SELECT content_hash FROM snapshot_versions WHERE content_hash IS NOT NULL",
+        )?;
+        let hashes = stmt
+            .query_map([], |row| row.get::<_, Vec<u8>>(0))?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        Ok(hashes)
+    }
+
     /// Base directory of the store (parent of the `vaults/` dir) for a vault at `path`,
     /// where the shared `blobs.avfs` lives. Falls back to the vault's own directory.
     fn blob_base_dir(path: &Path) -> PathBuf {
