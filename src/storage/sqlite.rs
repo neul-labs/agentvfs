@@ -4,14 +4,14 @@
 //! Busy timeout handles write conflicts automatically.
 
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use chrono::Utc;
 use rusqlite::{params, Connection, OptionalExtension};
 
 use crate::error::{Result, VfsError};
 use crate::fs::{FileEntry, FileType};
-use crate::storage::StorageBackend;
+use crate::storage::{BlobStore, StorageBackend, StorageMode};
 
 /// SQLite storage backend.
 ///
@@ -22,16 +22,34 @@ use crate::storage::StorageBackend;
 /// - **Writes**: Single writer at a time
 /// - **Conflict Handling**: busy_timeout (5000ms default) - SQLite retries automatically
 /// - **Transactions**: IMMEDIATE mode (acquire write lock at BEGIN)
+///
+/// # Storage mode
+///
+/// In `StorageMode::SharedBlob`, content blobs live in a shared [`BlobStore`] beside the
+/// `vaults/` directory rather than in this database, so `fork` copies only metadata. The
+/// `contents` table is then absent and content operations route through `self.blobs`.
 pub struct SqliteBackend {
     conn: Mutex<Connection>,
     path: PathBuf,
+    mode: StorageMode,
+    /// Shared blob store, present iff `mode == SharedBlob`.
+    blobs: Option<Arc<BlobStore>>,
 }
 
 impl SqliteBackend {
-    /// Open or create a SQLite database at the given path.
-    ///
-    /// Initializes the database with the vfs schema if it's new.
+    /// Open or create a SQLite database at the given path, auto-detecting the storage mode
+    /// from the persisted `storage_mode` setting (single-file for legacy/new vaults).
     pub fn open(path: &Path) -> Result<Self> {
+        Self::open_internal(path, None)
+    }
+
+    /// Open or create a SQLite database, using `mode` when the database is newly created.
+    /// Existing databases keep their persisted mode regardless of `mode`.
+    pub fn open_with_mode(path: &Path, mode: StorageMode) -> Result<Self> {
+        Self::open_internal(path, Some(mode))
+    }
+
+    fn open_internal(path: &Path, requested: Option<StorageMode>) -> Result<Self> {
         let conn = Connection::open(path)?;
 
         // Configure SQLite for concurrent access
@@ -40,15 +58,57 @@ impl SqliteBackend {
         conn.pragma_update(None, "synchronous", "NORMAL")?;
         conn.pragma_update(None, "foreign_keys", "ON")?;
 
+        // Determine storage mode: existing vaults use their persisted setting; new vaults use
+        // the requested mode (defaulting to single-file for backward compatibility).
+        let has_schema: bool = conn.query_row(
+            "SELECT COUNT(*) > 0 FROM sqlite_master WHERE type='table' AND name='files'",
+            [],
+            |row| row.get(0),
+        )?;
+        let mode = if has_schema {
+            let persisted: Option<String> = conn
+                .query_row(
+                    "SELECT value FROM settings WHERE key='storage_mode'",
+                    [],
+                    |row| row.get(0),
+                )
+                .optional()?;
+            StorageMode::from_setting(persisted.as_deref())
+        } else {
+            requested.unwrap_or_default()
+        };
+
+        let blobs = if matches!(mode, StorageMode::SharedBlob) {
+            Some(BlobStore::open_shared(&Self::blob_base_dir(path))?)
+        } else {
+            None
+        };
+
         let backend = Self {
             conn: Mutex::new(conn),
             path: path.to_path_buf(),
+            mode,
+            blobs,
         };
 
         // Initialize schema if needed
         backend.initialize_schema()?;
 
         Ok(backend)
+    }
+
+    /// Whether this vault stores content in the shared blob store.
+    fn is_shared(&self) -> bool {
+        matches!(self.mode, StorageMode::SharedBlob)
+    }
+
+    /// Base directory of the store (parent of the `vaults/` dir) for a vault at `path`,
+    /// where the shared `blobs.avfs` lives. Falls back to the vault's own directory.
+    fn blob_base_dir(path: &Path) -> PathBuf {
+        path.parent()
+            .and_then(|vaults_dir| vaults_dir.parent())
+            .map(|base| base.to_path_buf())
+            .unwrap_or_else(|| path.parent().unwrap_or(Path::new(".")).to_path_buf())
     }
 
     /// Initialize the database schema.
@@ -91,14 +151,6 @@ impl SqliteBackend {
             CREATE TABLE paths (
                 path TEXT PRIMARY KEY,
                 file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE
-            );
-
-            -- Content blobs (content-addressable storage)
-            CREATE TABLE contents (
-                hash BLOB PRIMARY KEY,
-                data BLOB NOT NULL,
-                size INTEGER NOT NULL,
-                ref_count INTEGER NOT NULL DEFAULT 1
             );
 
             -- Vault settings
@@ -258,6 +310,24 @@ impl SqliteBackend {
                 ('created_at', strftime('%s', 'now'));
             "#,
         )?;
+
+        // Content storage differs by mode: single-file vaults own a local `contents` table;
+        // shared-blob vaults route content to the shared blob store and record the mode.
+        if self.is_shared() {
+            conn.execute(
+                "INSERT OR REPLACE INTO settings (key, value) VALUES ('storage_mode', ?)",
+                [self.mode.as_setting()],
+            )?;
+        } else {
+            conn.execute_batch(
+                "CREATE TABLE contents (
+                    hash BLOB PRIMARY KEY,
+                    data BLOB NOT NULL,
+                    size INTEGER NOT NULL,
+                    ref_count INTEGER NOT NULL DEFAULT 1
+                );",
+            )?;
+        }
 
         Ok(())
     }
@@ -470,6 +540,10 @@ impl SqliteBackend {
 
     /// Read file content by hash.
     pub fn read_content(&self, hash: &[u8; 32]) -> Result<Vec<u8>> {
+        if let Some(blobs) = &self.blobs {
+            return blobs.read(hash);
+        }
+
         let conn = self.conn.lock().unwrap();
 
         conn.query_row(
@@ -487,6 +561,10 @@ impl SqliteBackend {
 
     /// Write file content and get its hash.
     pub fn write_content(&self, data: &[u8]) -> Result<[u8; 32]> {
+        if let Some(blobs) = &self.blobs {
+            return blobs.write(data);
+        }
+
         use sha2::{Digest, Sha256};
 
         let mut hasher = Sha256::new();
@@ -702,6 +780,11 @@ impl SqliteBackend {
 
     /// Increment reference count for content.
     pub fn increment_content_ref(&self, hash: &[u8; 32]) -> Result<()> {
+        // Shared-blob mode tracks liveness by store-wide mark-sweep GC, not per-vault refcounts.
+        if self.is_shared() {
+            return Ok(());
+        }
+
         let conn = self.conn.lock().unwrap();
 
         conn.execute(
@@ -745,13 +828,15 @@ impl SqliteBackend {
             params![new_path, file_id],
         )?;
 
-        // Increment ref count
-        if let Some(ref hash) = src.content_hash {
-            let hash_ref: &[u8] = hash.as_slice();
-            conn.execute(
-                "UPDATE contents SET ref_count = ref_count + 1 WHERE hash = ?",
-                [hash_ref],
-            )?;
+        // Increment ref count (single-file mode only; shared mode uses mark-sweep GC).
+        if !self.is_shared() {
+            if let Some(ref hash) = src.content_hash {
+                let hash_ref: &[u8] = hash.as_slice();
+                conn.execute(
+                    "UPDATE contents SET ref_count = ref_count + 1 WHERE hash = ?",
+                    [hash_ref],
+                )?;
+            }
         }
 
         Ok(file_id)
@@ -903,8 +988,27 @@ impl SqliteBackend {
 
         conn.execute("DELETE FROM fts_content WHERE rowid = ?", [file_id])?;
 
-        let data: Option<Vec<u8>> = conn
-            .query_row(
+        let data: Option<Vec<u8>> = if let Some(blobs) = &self.blobs {
+            // Shared mode: fetch the hash from metadata, then the blob from the shared store
+            // (can't JOIN across separate databases).
+            let hash: Option<Vec<u8>> = conn
+                .query_row(
+                    "SELECT content_hash FROM files WHERE id = ? AND file_type = 0",
+                    [file_id],
+                    |row| row.get::<_, Option<Vec<u8>>>(0),
+                )
+                .optional()?
+                .flatten();
+            match hash {
+                Some(h) if h.len() == 32 => {
+                    let mut arr = [0u8; 32];
+                    arr.copy_from_slice(&h);
+                    blobs.read(&arr).ok()
+                }
+                _ => None,
+            }
+        } else {
+            conn.query_row(
                 "SELECT c.data
                  FROM files f
                  JOIN contents c ON c.hash = f.content_hash
@@ -912,7 +1016,8 @@ impl SqliteBackend {
                 [file_id],
                 |row| row.get(0),
             )
-            .optional()?;
+            .optional()?
+        };
 
         if let Some(data) = data {
             if let Ok(content) = String::from_utf8(data) {
@@ -944,17 +1049,26 @@ impl SqliteBackend {
         let hash: [u8; 32] = hasher.finalize().into();
         let size = content.len() as u64;
 
+        // In shared-blob mode, commit the blob to the shared store BEFORE opening the metadata
+        // transaction. A crash can then only orphan a blob (harmless, GC-reclaimed), never leave
+        // a metadata reference to a missing blob.
+        if let Some(blobs) = &self.blobs {
+            blobs.put_raw(hash.as_slice(), content)?;
+        }
+
         let conn = self.conn.lock().unwrap();
         let now = Utc::now().timestamp();
 
         conn.execute("BEGIN IMMEDIATE", [])?;
 
         let result = (|| -> Result<i64> {
-            // Store content (idempotent)
-            conn.execute(
-                "INSERT OR IGNORE INTO contents (hash, data, size, ref_count) VALUES (?, ?, ?, 1)",
-                params![hash.as_slice(), content, size as i64],
-            )?;
+            // Store content (idempotent) — single-file mode only; shared mode stored it above.
+            if self.blobs.is_none() {
+                conn.execute(
+                    "INSERT OR IGNORE INTO contents (hash, data, size, ref_count) VALUES (?, ?, ?, 1)",
+                    params![hash.as_slice(), content, size as i64],
+                )?;
+            }
 
             // Check if file already exists
             let existing_id: Option<i64> = conn
@@ -1325,6 +1439,42 @@ impl SqliteBackend {
         // Clear existing index
         conn.execute("DELETE FROM fts_content", [])?;
 
+        let mut indexed = 0u64;
+
+        if let Some(blobs) = &self.blobs {
+            // Shared mode: gather (id, path, hash) from metadata, then read blobs from the
+            // shared store (no cross-database JOIN).
+            let rows: Vec<(i64, String, Vec<u8>)> = {
+                let mut stmt = conn.prepare(
+                    "SELECT f.id, p.path, f.content_hash
+                     FROM files f
+                     JOIN paths p ON p.file_id = f.id
+                     WHERE f.file_type = 0 AND f.content_hash IS NOT NULL",
+                )?;
+                let collected = stmt
+                    .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?
+                    .collect::<std::result::Result<Vec<_>, _>>()?;
+                collected
+            };
+            for (file_id, path, hash) in rows {
+                if hash.len() != 32 {
+                    continue;
+                }
+                let mut arr = [0u8; 32];
+                arr.copy_from_slice(&hash);
+                if let Ok(data) = blobs.read(&arr) {
+                    if let Ok(content) = String::from_utf8(data) {
+                        conn.execute(
+                            "INSERT INTO fts_content (rowid, path, content) VALUES (?, ?, ?)",
+                            params![file_id, path, content],
+                        )?;
+                        indexed += 1;
+                    }
+                }
+            }
+            return Ok(indexed);
+        }
+
         // Get all files with content
         let mut stmt = conn.prepare(
             "SELECT f.id, p.path, c.data
@@ -1334,7 +1484,6 @@ impl SqliteBackend {
              WHERE f.file_type = 0", // Files only
         )?;
 
-        let mut indexed = 0u64;
         let mut rows = stmt.query([])?;
         while let Some(row) = rows.next()? {
             let file_id: i64 = row.get(0)?;
@@ -1604,19 +1753,34 @@ impl SqliteBackend {
         let total_versions: u64 =
             conn.query_row("SELECT COUNT(*) FROM file_versions", [], |row| row.get(0))?;
 
-        // Count content blobs and total size
-        let (content_blobs, total_size_bytes): (u64, u64) = conn.query_row(
-            "SELECT COUNT(*), COALESCE(SUM(size), 0) FROM contents",
-            [],
-            |row| Ok((row.get(0)?, row.get(1)?)),
-        )?;
-
-        // Find orphaned blobs (content with ref_count = 0)
-        let (orphaned_blobs, orphaned_bytes): (u64, u64) = conn.query_row(
-            "SELECT COUNT(*), COALESCE(SUM(size), 0) FROM contents WHERE ref_count = 0",
-            [],
-            |row| Ok((row.get(0)?, row.get(1)?)),
-        )?;
+        // Count content blobs and total size. In shared mode these are store-wide figures from
+        // the shared blob store; orphan accounting is handled by store-wide mark-sweep GC.
+        let (content_blobs, total_size_bytes, orphaned_blobs, orphaned_bytes): (
+            u64,
+            u64,
+            u64,
+            u64,
+        ) = if let Some(blobs) = &self.blobs {
+            let (count, size) = blobs.stats()?;
+            (count, size, 0, 0)
+        } else {
+            let (content_blobs, total_size_bytes): (u64, u64) = conn.query_row(
+                "SELECT COUNT(*), COALESCE(SUM(size), 0) FROM contents",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )?;
+            let (orphaned_blobs, orphaned_bytes): (u64, u64) = conn.query_row(
+                "SELECT COUNT(*), COALESCE(SUM(size), 0) FROM contents WHERE ref_count = 0",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )?;
+            (
+                content_blobs,
+                total_size_bytes,
+                orphaned_blobs,
+                orphaned_bytes,
+            )
+        };
 
         Ok(VaultStats {
             files,
@@ -1760,6 +1924,12 @@ impl SqliteBackend {
 
     /// Recalculate all content reference counts.
     pub fn recalculate_ref_counts(&self) -> Result<u64> {
+        // Shared mode: blobs are shared across vaults; liveness is computed store-wide by
+        // mark-sweep GC, so per-vault refcounts don't apply.
+        if self.is_shared() {
+            return Ok(0);
+        }
+
         let conn = self.conn.lock().unwrap();
 
         // Update ref_count based on actual references from files and file_versions
@@ -1788,6 +1958,12 @@ impl SqliteBackend {
 
     /// Find orphaned content blobs (ref_count = 0).
     pub fn find_orphaned_blobs(&self) -> Result<Vec<OrphanedBlob>> {
+        // Shared mode: a single vault cannot determine orphans of the shared store; use the
+        // store-wide GC (see WorkspaceService) instead.
+        if self.is_shared() {
+            return Ok(Vec::new());
+        }
+
         let conn = self.conn.lock().unwrap();
 
         let mut stmt = conn.prepare("SELECT hash, size FROM contents WHERE ref_count = 0")?;
@@ -1807,6 +1983,16 @@ impl SqliteBackend {
 
     /// Delete orphaned content blobs.
     pub fn delete_orphaned_blobs(&self) -> Result<GcStats> {
+        // Shared mode: never delete from the shared store via a single vault; store-wide GC
+        // (WorkspaceService::gc_shared_store) owns blob reclamation.
+        if self.is_shared() {
+            return Ok(GcStats {
+                orphans_found: 0,
+                orphans_deleted: 0,
+                bytes_freed: 0,
+            });
+        }
+
         // First find what we're deleting for stats
         let orphans = self.find_orphaned_blobs()?;
         let orphans_found = orphans.len() as u64;
@@ -2565,12 +2751,16 @@ impl StorageBackend for SqliteBackend {
                 .optional()
                 .map_err(|e| e.into())
             }
-            "contents" => conn
-                .query_row("SELECT data FROM contents WHERE hash = ?", [key], |row| {
+            "contents" => {
+                if let Some(blobs) = &self.blobs {
+                    return blobs.get_raw(key);
+                }
+                conn.query_row("SELECT data FROM contents WHERE hash = ?", [key], |row| {
                     row.get(0)
                 })
                 .optional()
-                .map_err(|e| e.into()),
+                .map_err(|e| e.into())
+            }
             "settings" => {
                 let key_str = String::from_utf8_lossy(key);
                 conn.query_row(
@@ -2616,11 +2806,15 @@ impl StorageBackend for SqliteBackend {
                 )?;
             }
             "contents" => {
-                let size = value.len() as i64;
-                conn.execute(
-                    "INSERT OR IGNORE INTO contents (hash, data, size, ref_count) VALUES (?, ?, ?, 1)",
-                    params![key, value, size],
-                )?;
+                if let Some(blobs) = &self.blobs {
+                    blobs.put_raw(key, value)?;
+                } else {
+                    let size = value.len() as i64;
+                    conn.execute(
+                        "INSERT OR IGNORE INTO contents (hash, data, size, ref_count) VALUES (?, ?, ?, 1)",
+                        params![key, value, size],
+                    )?;
+                }
             }
             _ => {
                 return Err(VfsError::Internal(format!(
@@ -2646,7 +2840,11 @@ impl StorageBackend for SqliteBackend {
                 conn.execute("DELETE FROM settings WHERE key = ?", [key_str.as_ref()])?;
             }
             "contents" => {
-                conn.execute("DELETE FROM contents WHERE hash = ?", [key])?;
+                if let Some(blobs) = &self.blobs {
+                    blobs.delete_raw(key)?;
+                } else {
+                    conn.execute("DELETE FROM contents WHERE hash = ?", [key])?;
+                }
             }
             "files" => {
                 let id = i64::from_be_bytes(
@@ -2683,6 +2881,9 @@ impl StorageBackend for SqliteBackend {
                 Ok(exists)
             }
             "contents" => {
+                if let Some(blobs) = &self.blobs {
+                    return blobs.exists_raw(key);
+                }
                 let exists = conn
                     .query_row("SELECT 1 FROM contents WHERE hash = ?", [key], |_| Ok(true))
                     .optional()?

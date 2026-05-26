@@ -3,6 +3,7 @@
 //! This module provides a trait-based abstraction over different storage backends
 //! (SQLite, Sled, LMDB, etc.). Each backend implements its native concurrency model.
 
+mod blobstore;
 mod sqlite;
 
 #[cfg(feature = "sled-backend")]
@@ -11,6 +12,7 @@ mod sled;
 #[cfg(feature = "lmdb-backend")]
 mod lmdb;
 
+pub use blobstore::BlobStore;
 pub use sqlite::{
     AuditEntry, GcStats, OrphanedBlob, PruneStats, QuotaCheck, QuotaSettings, RestoreStats,
     SnapshotInfo, SqliteBackend, VaultStats,
@@ -93,6 +95,35 @@ impl FromStr for BackendType {
     }
 }
 
+/// How a vault stores content blobs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum StorageMode {
+    /// Blobs live inside the vault's own database file (default; legacy behavior).
+    #[default]
+    SingleFile,
+    /// Blobs live in a shared `blobs.avfs` store, so `fork` copies only metadata
+    /// (SQLite backend only).
+    SharedBlob,
+}
+
+impl StorageMode {
+    /// The value persisted in the vault's `storage_mode` setting.
+    pub fn as_setting(&self) -> &'static str {
+        match self {
+            StorageMode::SingleFile => "single-file",
+            StorageMode::SharedBlob => "shared-blob",
+        }
+    }
+
+    /// Parse the persisted `storage_mode` setting (absent/unknown ⇒ single-file).
+    pub fn from_setting(s: Option<&str>) -> Self {
+        match s {
+            Some("shared-blob") => StorageMode::SharedBlob,
+            _ => StorageMode::SingleFile,
+        }
+    }
+}
+
 use crate::error::Result;
 #[cfg(any(feature = "sled-backend", feature = "lmdb-backend"))]
 use crate::fs::path as vfs_path;
@@ -108,10 +139,23 @@ pub enum VaultBackend {
 }
 
 impl VaultBackend {
-    /// Open a vault with the specified backend type.
+    /// Open a vault with the specified backend type. Storage mode is auto-detected from the
+    /// vault's persisted `storage_mode` setting (defaults to single-file for legacy vaults).
     pub fn open(path: &Path, backend: BackendType) -> Result<Self> {
         match backend {
             BackendType::Sqlite => Ok(Self::Sqlite(SqliteBackend::open(path)?)),
+            #[cfg(feature = "sled-backend")]
+            BackendType::Sled => Ok(Self::Sled(SledBackend::open(path)?)),
+            #[cfg(feature = "lmdb-backend")]
+            BackendType::Lmdb => Ok(Self::Lmdb(LmdbBackend::open(path)?)),
+        }
+    }
+
+    /// Create/open a vault with an explicit storage mode. Only the SQLite backend supports
+    /// `StorageMode::SharedBlob`; other backends ignore the mode and stay single-file.
+    pub fn open_with_mode(path: &Path, backend: BackendType, mode: StorageMode) -> Result<Self> {
+        match backend {
+            BackendType::Sqlite => Ok(Self::Sqlite(SqliteBackend::open_with_mode(path, mode)?)),
             #[cfg(feature = "sled-backend")]
             BackendType::Sled => Ok(Self::Sled(SledBackend::open(path)?)),
             #[cfg(feature = "lmdb-backend")]

@@ -677,3 +677,60 @@ fn test_quota_allows_deduplicated_copy() {
         .assert()
         .success();
 }
+
+#[test]
+fn test_shared_blob_fork_shares_content() {
+    let home = tempdir().unwrap();
+
+    // Create a shared-blob vault and write content.
+    avfs()
+        .env("HOME", home.path())
+        .args(["vault", "create", "base", "--shared-blob"])
+        .assert()
+        .success();
+    avfs()
+        .env("HOME", home.path())
+        .args(["--vault", "base", "write", "/hello.txt", "hello from base"])
+        .assert()
+        .success();
+
+    // Content lives in the shared blob store beside the vaults dir.
+    let blobs = home.path().join(".avfs").join("blobs.avfs");
+    assert!(blobs.exists(), "shared blobs.avfs should exist");
+
+    // A fork copies only the metadata DB; the shared blob store must not grow (no blob
+    // duplication) — the core O(metadata) fork property, independent of content size.
+    let blobs_before = std::fs::metadata(&blobs).unwrap().len();
+    avfs()
+        .env("HOME", home.path())
+        .args(["vault", "fork", "base", "f1"])
+        .assert()
+        .success();
+    let blobs_after = std::fs::metadata(&blobs).unwrap().len();
+    assert_eq!(
+        blobs_before, blobs_after,
+        "fork must not duplicate blobs in the shared store"
+    );
+
+    // Read original content through the fork.
+    avfs()
+        .env("HOME", home.path())
+        .args(["--vault", "f1", "cat", "/hello.txt"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("hello from base"));
+
+    // Mutating the fork does not affect the source (independence).
+    avfs()
+        .env("HOME", home.path())
+        .args(["--vault", "f1", "write", "/hello.txt", "changed in f1"])
+        .assert()
+        .success();
+    avfs()
+        .env("HOME", home.path())
+        .args(["--vault", "base", "cat", "/hello.txt"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("hello from base"))
+        .stdout(predicate::str::contains("changed in f1").not());
+}

@@ -6,7 +6,7 @@ use serde::Serialize;
 use crate::commands::Output;
 use crate::error::Result;
 use crate::runtime::workspace::WorkspaceService;
-use crate::storage::BackendType;
+use crate::storage::{BackendType, StorageMode};
 use crate::vault::VaultManager;
 
 #[derive(Args)]
@@ -24,6 +24,10 @@ pub enum VaultCommand {
         /// Storage backend to use (sqlite or sled)
         #[arg(short, long, default_value = "sqlite")]
         backend: String,
+        /// Use the shared-blob store so forks copy only metadata (SQLite only).
+        /// Also enabled by AVFS_STORAGE_MODE=shared-blob.
+        #[arg(long)]
+        shared_blob: bool,
     },
     /// List all vaults
     List,
@@ -89,7 +93,11 @@ pub fn run(args: VaultArgs, output: &Output) -> Result<()> {
     let manager = VaultManager::new()?;
 
     match args.command {
-        VaultCommand::Create { name, backend } => {
+        VaultCommand::Create {
+            name,
+            backend,
+            shared_blob,
+        } => {
             let backend_type: BackendType = backend
                 .parse()
                 .map_err(|e: String| crate::error::VfsError::InvalidPath(e))?;
@@ -102,15 +110,31 @@ pub fn run(args: VaultArgs, output: &Output) -> Result<()> {
                 ));
             }
 
-            manager.create_with_backend(&name, backend_type)?;
+            // Shared-blob mode from flag or AVFS_STORAGE_MODE=shared-blob.
+            let env_shared = std::env::var("AVFS_STORAGE_MODE")
+                .map(|v| v == "shared-blob")
+                .unwrap_or(false);
+            let mode = if shared_blob || env_shared {
+                StorageMode::SharedBlob
+            } else {
+                StorageMode::SingleFile
+            };
+
+            manager.create_with_mode(&name, backend_type, mode)?;
             if output.is_json() {
                 output.print_json(&serde_json::json!({
                     "created": name,
                     "current": true,
                     "backend": backend_type.to_string(),
+                    "storage_mode": mode.as_setting(),
                 }));
             } else {
-                println!("Created vault: {} (backend: {})", name, backend_type);
+                println!(
+                    "Created vault: {} (backend: {}, storage: {})",
+                    name,
+                    backend_type,
+                    mode.as_setting()
+                );
             }
         }
         VaultCommand::List => {
