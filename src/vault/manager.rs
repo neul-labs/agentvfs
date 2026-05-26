@@ -12,7 +12,7 @@ use crate::storage::LmdbBackend;
 #[cfg(feature = "sled-backend")]
 use crate::storage::SledBackend;
 use crate::storage::SqliteBackend;
-use crate::storage::{BackendType, VaultBackend};
+use crate::storage::{BackendType, StorageMode, VaultBackend};
 use crate::vault::Config;
 
 /// Information about a vault.
@@ -63,8 +63,21 @@ impl VaultManager {
         Self { config }
     }
 
-    /// Create a new vault with specified backend.
+    /// Create a new vault with specified backend (single-file storage mode).
     pub fn create_with_backend(&self, name: &str, backend: BackendType) -> Result<()> {
+        self.create_with_mode(name, backend, StorageMode::default())
+    }
+
+    /// Create a new vault with a specific backend and storage mode.
+    ///
+    /// `StorageMode::SharedBlob` (SQLite only) routes content to a shared `blobs.avfs` store so
+    /// later `fork`s copy only metadata; other backends ignore the mode.
+    pub fn create_with_mode(
+        &self,
+        name: &str,
+        backend: BackendType,
+        mode: StorageMode,
+    ) -> Result<()> {
         validate_workspace_name(name)?;
 
         if self.config.vault_exists(name) {
@@ -76,7 +89,7 @@ impl VaultManager {
         // Create the database based on backend type
         match backend {
             BackendType::Sqlite => {
-                let _backend = SqliteBackend::open(&path)?;
+                let _backend = SqliteBackend::open_with_mode(&path, mode)?;
             }
             #[cfg(feature = "sled-backend")]
             BackendType::Sled => {

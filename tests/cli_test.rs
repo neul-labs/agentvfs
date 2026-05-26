@@ -677,3 +677,124 @@ fn test_quota_allows_deduplicated_copy() {
         .assert()
         .success();
 }
+
+#[test]
+fn test_shared_blob_fork_shares_content() {
+    let home = tempdir().unwrap();
+
+    // Create a shared-blob vault and write content.
+    avfs()
+        .env("HOME", home.path())
+        .args(["vault", "create", "base", "--shared-blob"])
+        .assert()
+        .success();
+    avfs()
+        .env("HOME", home.path())
+        .args(["--vault", "base", "write", "/hello.txt", "hello from base"])
+        .assert()
+        .success();
+
+    // Content lives in the shared blob store beside the vaults dir.
+    let blobs = home.path().join(".avfs").join("blobs.avfs");
+    assert!(blobs.exists(), "shared blobs.avfs should exist");
+
+    // A fork copies only the metadata DB; the shared blob store must not grow (no blob
+    // duplication) — the core O(metadata) fork property, independent of content size.
+    let blobs_before = std::fs::metadata(&blobs).unwrap().len();
+    avfs()
+        .env("HOME", home.path())
+        .args(["vault", "fork", "base", "f1"])
+        .assert()
+        .success();
+    let blobs_after = std::fs::metadata(&blobs).unwrap().len();
+    assert_eq!(
+        blobs_before, blobs_after,
+        "fork must not duplicate blobs in the shared store"
+    );
+
+    // Read original content through the fork.
+    avfs()
+        .env("HOME", home.path())
+        .args(["--vault", "f1", "cat", "/hello.txt"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("hello from base"));
+
+    // Mutating the fork does not affect the source (independence).
+    avfs()
+        .env("HOME", home.path())
+        .args(["--vault", "f1", "write", "/hello.txt", "changed in f1"])
+        .assert()
+        .success();
+    avfs()
+        .env("HOME", home.path())
+        .args(["--vault", "base", "cat", "/hello.txt"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("hello from base"))
+        .stdout(predicate::str::contains("changed in f1").not());
+
+    // Deferred FTS: search still works in shared mode via on-demand (lazy) index rebuild.
+    avfs()
+        .env("HOME", home.path())
+        .args(["--vault", "base", "search", "hello"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("/hello.txt"));
+}
+
+#[test]
+fn test_shared_blob_gc_reclaims_orphans() {
+    let home = tempdir().unwrap();
+
+    // Two shared-blob vaults with distinct content (two blobs in the shared store).
+    avfs()
+        .env("HOME", home.path())
+        .args(["vault", "create", "base", "--shared-blob"])
+        .assert()
+        .success();
+    avfs()
+        .env("HOME", home.path())
+        .args(["--vault", "base", "write", "/a.txt", "unique-aaa-content"])
+        .assert()
+        .success();
+    avfs()
+        .env("HOME", home.path())
+        .args(["vault", "create", "other", "--shared-blob"])
+        .assert()
+        .success();
+    avfs()
+        .env("HOME", home.path())
+        .args(["--vault", "other", "write", "/b.txt", "unique-bbb-content"])
+        .assert()
+        .success();
+
+    // Both blobs are referenced: store-wide GC finds nothing to reclaim.
+    avfs()
+        .env("HOME", home.path())
+        .args(["--vault", "base", "gc", "--dry-run"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Found 0 orphaned"));
+
+    // Delete one vault; its blob is now unreferenced and GC reclaims exactly it.
+    avfs()
+        .env("HOME", home.path())
+        .args(["vault", "delete", "base", "-y"])
+        .assert()
+        .success();
+    avfs()
+        .env("HOME", home.path())
+        .args(["--vault", "other", "gc"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Deleted 1 orphaned"));
+
+    // The surviving vault's content is intact.
+    avfs()
+        .env("HOME", home.path())
+        .args(["--vault", "other", "cat", "/b.txt"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("unique-bbb-content"));
+}
