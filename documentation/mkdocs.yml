@@ -1,6 +1,6 @@
 site_name: AgentVFS Documentation
 site_description: Workspace runtime and execution boundary for AI agents
-site_url: https://agentvfs.docs.neullabs.com/
+site_url: https://docs.neullabs.com/agentvfs/
 repo_url: https://github.com/neul-labs/agentvfs
 repo_name: neul-labs/agentvfs
 edit_uri: edit/main/documentation/docs/
