@@ -11,6 +11,29 @@
 
 ---
 
+## Why agentvfs?
+
+Building autonomous agents means giving them shell access. The naive
+choices all have a known pain point:
+
+- **Docker bind-mounts** — Docker [moby/moby #1820](https://github.com/moby/moby/issues/1820) and follow-ups make cross-platform bind-mounts fragile on macOS hosts; containerised agents inherit Docker's daemon, cgroup, and network stack overhead
+- **Syscall tracing (bubblewrap/firejail)** — strong isolation, but tools that read their own `/proc` or query `uname` break; agents that need to call the host compiler fail mysteriously
+- **Per-tool sandboxing (Anthropic, OpenAI)** — works until you need two tools to share state, or until you need to roll back
+- **Pyfilesystem2 / go-cloud** — VFS libraries, not execution boundaries; you still have to build the proxy yourself
+
+agentvfs gives you a **single proxy surface** (`avfs proxy exec -- cmd`)
+that handles checkpoints, isolation, timeouts, and change tracking
+without the syscall-level complexity or the daemon overhead.
+
+| Feature | agentvfs | Docker bind-mount | bubblewrap | pyfilesystem2 | E2B / Fly sandboxes |
+|---|---|---|---|---|---|
+| Cold start | ~5ms (fork) | ~500ms | ~50ms | in-process | 1-3s (network) |
+| Checkpoint / rollback | ✅ first-class | ❌ (manual layers) | ❌ | ❌ | ❌ |
+| Network-free | ✅ | ❌ | ✅ | ✅ | ❌ |
+| Standard tooling works | ✅ | ✅ | ⚠️ | ❌ | ✅ |
+| Designed for agent loops | ✅ | ⚠️ | ❌ | ❌ | ✅ |
+| Open source | ✅ MIT | ✅ Apache | ✅ | ✅ | ❌ |
+
 ## What You Get
 
 For **agent developers** and **architects** building autonomous systems:
