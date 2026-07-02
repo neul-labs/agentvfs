@@ -9,6 +9,12 @@
   <a href="https://crates.io/crates/agentvfs"><img src="https://img.shields.io/crates/d/agentvfs.svg" alt="Downloads"></a>
 </p>
 
+<p align="center">
+  <a href="https://agentvfs.neullabs.com">Website</a> ·
+  <a href="https://docs.neullabs.com/agentvfs">Documentation</a> ·
+  <a href="https://github.com/neul-labs/agentvfs">GitHub</a>
+</p>
+
 ---
 
 ## Why agentvfs?
@@ -173,3 +179,15 @@ Full documentation is available at **[docs.neullabs.com/agentvfs](https://docs.n
 ## License
 
 MIT
+
+## Part of the Neul Labs toolchain
+
+Part of the [Neul Labs](https://www.neullabs.com) agent-infrastructure toolchain:
+
+| Project | Description |
+| --- | --- |
+| [memorg](https://memorg.neullabs.com) | Give your LLM a memory that actually works. |
+| [ormai](https://ormai.neullabs.com) | Give your AI agents database access without the risk — safe text-to-SQL. |
+| [mcp-pay](https://mcp-pay.neullabs.com) | Payment awareness layer for MCP (Model Context Protocol). |
+| [closegate](https://closegate.neullabs.com) | The policy chokepoint for finance AI agents. |
+| [regulus](https://regulus.neullabs.com) | The EU & UK compliance plane for Google ADK. |
