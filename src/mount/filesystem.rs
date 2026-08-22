@@ -911,6 +911,23 @@ impl Filesystem for VfsFilesystem {
                     reply.error(Self::error_to_errno(&e));
                     return;
                 }
+
+                // A handle may already be open on this path. Without ATOMIC_O_TRUNC the kernel
+                // issues open() first and setattr(size) second, so an open handle is holding a
+                // buffer of the pre-truncation content. Writing the file alone is not enough: the
+                // handle would flush that stale buffer back on release, resurrecting the tail of
+                // the old content past the end of the new data. Resize every buffer on this path
+                // so the truncation is visible to handles that are already open.
+                let mut open_files = self.open_files.lock().unwrap();
+                for open_file in open_files.values_mut() {
+                    if open_file.path != path {
+                        continue;
+                    }
+                    if let Some(buffer) = open_file.buffer.as_mut() {
+                        buffer.resize(new_size as usize, 0);
+                        open_file.state = OpenFileState::Dirty;
+                    }
+                }
             }
         }
 
