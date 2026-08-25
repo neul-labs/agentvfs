@@ -2,14 +2,14 @@
 name = "agentvfs"
 version = "0.1.8"
 edition = "2021"
-authors = ["Dipankar Sarkar <me@dipankar.name>"]
-description = "Virtual filesystem CLI backed by embedded databases for AI agents"
+authors = ["Neul Labs <contact@neullabs.com>"]
+description = "Workspace runtime and execution boundary for AI agents"
 license = "MIT"
 repository = "https://github.com/neul-labs/agentvfs"
-homepage = "https://github.com/neul-labs/agentvfs"
-documentation = "https://docs.rs/agentvfs"
+homepage = "https://agentvfs.neullabs.com"
+documentation = "https://docs.neullabs.com/agentvfs"
 readme = "README.md"
-keywords = ["filesystem", "virtual", "cli", "database", "ai-agent"]
+keywords = ["agent", "sandbox", "workspace", "filesystem", "isolation"]
 categories = ["command-line-utilities", "filesystem", "database"]
 exclude = [
     "site/*",

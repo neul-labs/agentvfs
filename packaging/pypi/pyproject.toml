@@ -9,7 +9,7 @@ description = "Workspace runtime and execution boundary for AI agents"
 readme = "README.md"
 license = { text = "MIT" }
 authors = [
-    { name = "Neul Labs" }
+    { name = "Neul Labs", email = "contact@neullabs.com" }
 ]
 keywords = ["vfs", "filesystem", "agent", "ai", "workspace", "sandbox"]
 classifiers = [
@@ -30,7 +30,7 @@ requires-python = ">=3.8"
 dependencies = []
 
 [project.urls]
-Homepage = "https://docs.neullabs.com/agentvfs"
+Homepage = "https://agentvfs.neullabs.com"
 Repository = "https://github.com/neul-labs/agentvfs"
 Documentation = "https://docs.neullabs.com/agentvfs"
 "Bug Tracker" = "https://github.com/neul-labs/agentvfs/issues"
